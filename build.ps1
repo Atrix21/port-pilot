@@ -6,12 +6,14 @@
     ./build.ps1                 # test + publish + installer
     ./build.ps1 -SkipTests      # publish + installer
     ./build.ps1 -Screenshots    # also regenerate docs/screenshots
+    ./build.ps1 -Gif            # also re-record docs/demo.gif (needs ffmpeg: winget install Gyan.FFmpeg)
 #>
 param(
     [string]$Version = '1.0.0',
     [switch]$SkipTests,
     [switch]$SkipInstaller,
-    [switch]$Screenshots
+    [switch]$Screenshots,
+    [switch]$Gif
 )
 
 $ErrorActionPreference = 'Stop'
@@ -62,6 +64,24 @@ if ($Screenshots) {
     New-Item -ItemType Directory -Force $shots | Out-Null
     $p = Start-Process (Join-Path $publish 'PortPilot.exe') -ArgumentList '--screenshot', $shots -PassThru
     if (-not $p.WaitForExit(240000)) { $p.Kill(); throw 'Screenshot run timed out' }
+}
+
+if ($Gif) {
+    Write-Host '› Recording demo GIF' -ForegroundColor Cyan
+    $ffmpeg = (Get-Command ffmpeg -ErrorAction SilentlyContinue)?.Source
+    if (-not $ffmpeg) {
+        $ffmpeg = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter ffmpeg.exe -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+    }
+    if (-not $ffmpeg) { throw 'ffmpeg was not found. Install it with: winget install Gyan.FFmpeg' }
+
+    $frames = Join-Path ([System.IO.Path]::GetTempPath()) 'PortPilot-recording'
+    $p = Start-Process (Join-Path $publish 'PortPilot.exe') -ArgumentList '--record', $frames -PassThru
+    if (-not $p.WaitForExit(180000)) { $p.Kill(); throw 'Recording timed out' }
+
+    # Palette from frame differences, light ordered dither, and only changed regions per frame.
+    $filter = 'scale=1000:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=160:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle'
+    & $ffmpeg -y -loglevel error -f concat -safe 0 -i (Join-Path $frames 'frames.txt') -fps_mode vfr -vf $filter -loop 0 docs/demo.gif
+    if ($LASTEXITCODE) { throw 'GIF encoding failed' }
 }
 
 if (-not $SkipInstaller) {

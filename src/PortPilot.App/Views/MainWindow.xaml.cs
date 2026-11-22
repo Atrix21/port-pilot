@@ -197,6 +197,10 @@ public partial class MainWindow : Window, IThemeTransitionHost
                     Table.ScrollIntoView(_viewModel.SelectedRow);
                 }
                 break;
+            case nameof(MainViewModel.SelectedRow) when Table.IsKeyboardFocusWithin:
+                // Nothing selected: park focus on the list itself rather than on the last row.
+                Table.Focus();
+                break;
             case nameof(MainViewModel.Pulse):
                 PulseLiveIndicator();
                 break;

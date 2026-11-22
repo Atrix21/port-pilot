@@ -18,8 +18,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/main-dark.png" alt="PortPilot showing listening ports in dark mode" width="100%" />
+  <img src="docs/demo.gif" alt="PortPilot: a dev server appears, a search for vite, the inspector, terminating a process, and switching to the light theme" width="100%" />
 </p>
+
+<p align="center"><sub>Real app, real timing, fake processes. No Next.js servers were harmed. One was terminated, but it asked for it.</sub></p>
 
 ---
 
@@ -124,7 +126,7 @@ Click a row for the inspector, hover a row for quick actions, right-click for al
 | Settings | `%APPDATA%\PortPilot\settings.json` |
 | Logs (structured JSON lines, kept 7 days) | `%LOCALAPPDATA%\PortPilot\logs` |
 
-Command-line flags: `--minimized`, `--demo`, `--verbose`, `--screenshot <folder>`. That last one renders every screenshot in this README, which is how they all line up so suspiciously well.
+Command-line flags: `--minimized`, `--demo`, `--verbose`, `--screenshot <folder>` and `--record <folder>`. The last two produce every image in this README (`./build.ps1 -Screenshots -Gif`), which is how they all line up so suspiciously well.
 
 </details>
 

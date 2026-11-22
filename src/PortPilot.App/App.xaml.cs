@@ -129,7 +129,10 @@ public partial class App : Application, IAppShell
 
         if (Options.IsScreenshotRun)
         {
-            _ = new ScreenshotRunner(_window, _viewModel, theme, Options.ScreenshotDirectory!).RunAsync().ContinueWith(
+            var run = Options.RecordDirectory is { } recordDirectory
+                ? new RecordingRunner(_window, _viewModel, theme, recordDirectory).RunAsync()
+                : new ScreenshotRunner(_window, _viewModel, theme, Options.ScreenshotDirectory!).RunAsync();
+            _ = run.ContinueWith(
                 t =>
                 {
                     if (t.Exception is not null)
@@ -393,7 +396,11 @@ internal sealed record StartupOptions
 
     public string? ScreenshotDirectory { get; init; }
 
-    public bool IsScreenshotRun => ScreenshotDirectory is not null;
+    /// <summary>Folder for <c>--record</c>: a scripted tour saved as timed frames.</summary>
+    public string? RecordDirectory { get; init; }
+
+    /// <summary>True for any automated capture run (screenshots or recording), which uses demo data.</summary>
+    public bool IsScreenshotRun => ScreenshotDirectory is not null || RecordDirectory is not null;
 
     public static StartupOptions Parse(string[] args)
     {
@@ -407,6 +414,7 @@ internal sealed record StartupOptions
                 "--verbose" => options with { Verbose = true },
                 "--elevated-restart" => options with { ElevatedRestart = true },
                 "--screenshot" when i + 1 < args.Length => options with { ScreenshotDirectory = Path.GetFullPath(args[++i]) },
+                "--record" when i + 1 < args.Length => options with { RecordDirectory = Path.GetFullPath(args[++i]) },
                 _ => options,
             };
         }
