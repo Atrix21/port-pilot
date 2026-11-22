@@ -57,3 +57,53 @@ jobs:
           $notes = ".github/release-notes/${{ github.ref_name }}.md"
           $notesArgs = if (Test-Path $notes) { @('--notes-file', $notes) } else { @('--generate-notes') }
           gh release create '${{ github.ref_name }}' dist/* --title "PortPilot $env:VERSION" @notesArgs
+
+  # Point the Scoop bucket at the new release, then prove it installs.
+  scoop-manifest:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Update bucket/portpilot.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          gh release download '${{ github.ref_name }}' --pattern SHA256SUMS.txt
+          $hash = (Get-Content SHA256SUMS.txt | Where-Object { $_ -match 'portable\.exe$' }).Split(' ')[0]
+          $manifest = Get-Content bucket/portpilot.json -Raw | ConvertFrom-Json
+          $manifest.version = $version
+          $manifest.architecture.'64bit'.url = "https://github.com/${{ github.repository }}/releases/download/v$version/PortPilot-$version-portable.exe#/PortPilot.exe"
+          $manifest.architecture.'64bit'.hash = $hash
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content bucket/portpilot.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bucket/portpilot.json
+          git diff --cached --quiet || (git commit -m "Scoop: PortPilot $version" && git push)
+
+  scoop-test:
+    needs: scoop-manifest
+    uses: ./.github/workflows/packages.yml
+
+  # Submits the new version to winget. Needs a classic personal access token with the
+  # public_repo scope saved as the WINGET_TOKEN repository secret; skipped without it.
+  winget:
+    needs: release
+    runs-on: windows-latest
+    env:
+      HAS_TOKEN: ${{ secrets.WINGET_TOKEN != '' }}
+    steps:
+      - name: Submit to winget-pkgs
+        if: env.HAS_TOKEN == 'true'
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          identifier: Atrix21.PortPilot
+          installers-regex: 'Setup\.exe$'
+          token: ${{ secrets.WINGET_TOKEN }}
+      - name: Skipped
+        if: env.HAS_TOKEN != 'true'
+        run: echo "WINGET_TOKEN is not set; submit updates to winget manually."

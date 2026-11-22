@@ -1,0 +1,42 @@
+name: Package managers
+
+# Installs PortPilot the way users do, on a clean Windows machine: via the Scoop bucket in this
+# repository. Runs on demand, when the bucket changes, and after every release.
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+    paths: [bucket/**]
+
+permissions:
+  contents: read
+
+jobs:
+  scoop:
+    runs-on: windows-latest
+    steps:
+      - name: Install Scoop
+        shell: pwsh
+        run: |
+          # GitHub runners are elevated, which Scoop refuses by default.
+          iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+          "$env:USERPROFILE\scoop\shims" | Out-File -Append $env:GITHUB_PATH
+
+      - name: Install PortPilot from the bucket
+        shell: pwsh
+        run: |
+          scoop bucket add portpilot https://github.com/Atrix21/port-pilot
+          scoop install portpilot/portpilot
+          scoop info portpilot
+
+      - name: Launch it
+        shell: pwsh
+        run: |
+          $exe = "$env:USERPROFILE\scoop\apps\portpilot\current\PortPilot.exe"
+          if (-not (Test-Path $exe)) { throw "PortPilot.exe was not installed" }
+          $p = Start-Process $exe -ArgumentList '--demo' -PassThru
+          Start-Sleep 8
+          if ($p.HasExited) { throw "PortPilot exited with code $($p.ExitCode)" }
+          Stop-Process $p -Force
+          "PortPilot started and stayed running."
