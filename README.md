@@ -81,7 +81,7 @@ PortPilot is a small native Windows app that watches every listening port on you
 
 Windows 10 (1809+) or 11, x64. .NET is bundled, so there is nothing else to install.
 
-**About the blue "Windows protected your PC" box.** You'll probably see it. Windows shows it for any app that isn't signed with a paid certificate and hasn't been downloaded thousands of times yet. It is not a verdict on the app, just on its bank balance. Click **More info → Run anyway**. Every release is built by [GitHub Actions](https://github.com/Atrix21/port-pilot/actions/workflows/release.yml) straight from the tagged source, and ships with `SHA256SUMS.txt` so you can check the file with `Get-FileHash`.
+**About the blue "Windows protected your PC" box.** You'll probably see it. Windows shows it for any app that isn't signed with a paid certificate and hasn't been downloaded thousands of times yet. It is not a verdict on the app, just on its bank balance. Click **More info → Run anyway**. Every release is built by [GitHub Actions](https://github.com/Atrix21/port-pilot/actions/workflows/release.yml) straight from the tagged source, and GitHub signs a provenance attestation for each file. Trust, but verify: `gh attestation verify PortPilot-1.0.0-Setup.exe --repo Atrix21/port-pilot`.
 
 Want to look around first? `PortPilot.exe --demo` runs it against a pretend developer machine, so you can click *Terminate* on things without consequences, which is more than can be said for real life.
 
