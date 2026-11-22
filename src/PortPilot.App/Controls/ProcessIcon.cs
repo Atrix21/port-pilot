@@ -74,7 +74,7 @@ public sealed class ProcessIcon : Control
             return;
         }
 
-        var task = Cache.GetOrAdd(path, p => Task.Run(() => Extract(p)));
+        var task = Cache.GetOrAdd(path, p => Task.Run<ImageSource?>(() => Extract(p)));
         if (task.IsCompletedSuccessfully)
         {
             Source = task.Result;
@@ -89,7 +89,7 @@ public sealed class ProcessIcon : Control
         }
     }
 
-    private static ImageSource? Extract(string path)
+    private static BitmapSource? Extract(string path)
     {
         // 48px renders crisply at 20px on 200% displays and at 40px on 100–125% displays.
         const int size = 48;

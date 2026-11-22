@@ -94,7 +94,7 @@ public sealed class PortChangeTrackerTests
         var changes = tracker.Apply(Entries.Snapshot(Entries.Tcp(3000, image: "bun.exe")));
 
         Assert.AreEqual("bun.exe", changes.Updated.Single().Entry.Process.ImageName);
-        Assert.IsFalse(changes.Added.Any());
+        Assert.AreEqual(0, changes.Added.Count);
     }
 
     [TestMethod]
