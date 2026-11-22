@@ -11,3 +11,7 @@ updates:
     groups:
       nuget:
         patterns: ["*"]
+    ignore:
+      # Major versions track new .NET releases; move to those deliberately, with the target framework.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
