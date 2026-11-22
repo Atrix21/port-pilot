@@ -10,9 +10,13 @@
 </p>
 
 <p align="center">
-  <img alt="Windows 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0b0b0c?style=flat-square&logo=windows11&logoColor=white" />
+  <a href="https://github.com/Atrix21/port-pilot/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/Atrix21/port-pilot?style=for-the-badge&label=download&color=e9a35c&labelColor=0b0b0c" /></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Atrix21/port-pilot/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Atrix21/port-pilot/ci.yml?branch=main&style=flat-square&label=tests&labelColor=0b0b0c" /></a>
+  <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0b0b0c?style=flat-square&logo=windows11&logoColor=white" />
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-0b0b0c?style=flat-square&logo=dotnet&logoColor=white" />
-  <img alt="WPF" src="https://img.shields.io/badge/UI-WPF%2C%20native-0b0b0c?style=flat-square" />
   <img alt="Electron" src="https://img.shields.io/badge/Electron-no-e9a35c?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0b0b0c?style=flat-square" />
 </p>
@@ -66,26 +70,30 @@ PortPilot is a small native Windows app that watches every listening port on you
   </tr>
 </table>
 
-## Install
+## Download
 
-**Build it** (about two minutes, most of which is the installer compressing itself):
+**[Get the latest release →](https://github.com/Atrix21/port-pilot/releases/latest)**
+
+| File | For |
+| --- | --- |
+| `PortPilot-x.y.z-Setup.exe` (~44 MB) | Most people. Installs for your user only, no admin prompt, uninstalls cleanly. |
+| `PortPilot-x.y.z-portable.exe` (~64 MB) | Commitment issues. One file, runs from anywhere, installs nothing. |
+
+Windows 10 (1809+) or 11, x64. .NET is bundled, so there is nothing else to install.
+
+**About the blue "Windows protected your PC" box.** You'll probably see it. Windows shows it for any app that isn't signed with a paid certificate and hasn't been downloaded thousands of times yet. It is not a verdict on the app, just on its bank balance. Click **More info → Run anyway**. Every release is built by [GitHub Actions](https://github.com/Atrix21/port-pilot/actions/workflows/release.yml) straight from the tagged source, and ships with `SHA256SUMS.txt` so you can check the file with `Get-FileHash`.
+
+Want to look around first? `PortPilot.exe --demo` runs it against a pretend developer machine, so you can click *Terminate* on things without consequences, which is more than can be said for real life.
+
+### Or build it yourself
 
 ```powershell
 git clone https://github.com/Atrix21/port-pilot.git
 cd port-pilot
-./build.ps1
+./build.ps1        # tests, then artifacts/publish/PortPilot.exe and artifacts/installer/*.exe
 ```
 
-This runs the tests and produces two files:
-
-| File | What it is |
-| --- | --- |
-| `artifacts/installer/PortPilot-1.0.0-Setup.exe` | The installer (~44 MB). Per-user, no admin prompt. |
-| `artifacts/publish/PortPilot.exe` | The app as a single self-contained file (~140 MB). Runs anywhere, installs nothing. |
-
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) to build, and [Inno Setup 6](https://jrsoftware.org/isinfo.php) for the installer (`winget install JRSoftware.InnoSetup`). The finished app needs neither. It doesn't even need .NET.
-
-Want to look around first? `PortPilot.exe --demo` runs it against a pretend developer machine, so you can click *Terminate* on things without consequences, which is more than can be said for real life.
+Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). It takes a couple of minutes, most of which is the installer compressing itself.
 
 ## Using it
 
@@ -138,11 +146,20 @@ Yes, in the sense that a car is wheels with a nicer chair. It reads the same Win
 **Why not Electron?**
 It watches ports on your machine. Making it also occupy several of them seemed rude.
 
+**You said no Electron, and the download is still 44 MB.**
+Correct. It carries its own copy of .NET, so you don't have to install a runtime, find out it's the wrong runtime, and install another runtime. That's about 40 of the 44 MB. The app itself is roughly the size of a large JPEG. Your `node_modules` folder has already forgiven it.
+
+**It's Windows only?**
+It reads Windows' own port tables and uses Windows' own window chrome. On macOS you have `lsof -i` and a sense of superiority, which is most of what this app does anyway.
+
 **Does it phone home?**
 It does not have a home. No telemetry, no accounts, no network calls. It reads your port table and writes a settings file. That is the whole relationship.
 
 **Why does it need administrator rights?**
 It doesn't. Windows just won't show anyone the details of system processes without them. PortPilot runs as you, shows what you are allowed to see, and offers to restart elevated when you need more.
+
+**Port 8080 is taken. Who did it?**
+Statistically, Java. PortPilot will tell you for certain, which ends a lot of arguments in shared offices.
 
 **It says a port is owned by "System". What is System?**
 Usually HTTP.sys, the part of Windows that serves ports on behalf of IIS, WinRM and other services. PortPilot will not terminate it. Neither should you.
@@ -182,7 +199,9 @@ On a machine with about 60 open endpoints, a scan takes 1–3 ms. The Release bu
 
 ## Contributing
 
-Issues and pull requests are welcome. Run `./build.ps1` before sending anything; it runs the tests, and the tests have opinions.
+Issues and pull requests are welcome. Run `./build.ps1` before sending anything; it runs the tests, and the tests have opinions. CI runs them too, and it is less polite about it.
+
+Releases are cut by pushing a tag (`git tag v1.0.1 && git push --tags`); [the release workflow](.github/workflows/release.yml) does the rest.
 
 ## License
 

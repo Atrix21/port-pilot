@@ -88,6 +88,18 @@ if (-not $SkipInstaller) {
     Write-Host '› Building installer' -ForegroundColor Cyan
     & (Find-Iscc) "/DAppVersion=$Version" "/DPublishDir=$publish" installer/PortPilot.iss
     if ($LASTEXITCODE) { throw 'Installer build failed' }
+
+    # The portable download trades ~0.4 s of startup for less than half the size. The installer
+    # compresses on its own, so it keeps the faster uncompressed exe. This runs last because
+    # publishing again makes MSBuild clean the previous publish folder.
+    Write-Host '› Publishing compressed portable exe' -ForegroundColor Cyan
+    $portable = Join-Path $PSScriptRoot 'artifacts/portable'
+    & $dotnet publish src/PortPilot.App -c Release -r win-x64 --self-contained true `
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishReadyToRun=true `
+        -p:EnableCompressionInSingleFile=true -p:Version=$Version -o $portable --nologo
+    if ($LASTEXITCODE) { throw 'Portable publish failed' }
+    Get-ChildItem $portable -Exclude PortPilot.exe | Remove-Item -Recurse -Force
+    Rename-Item (Join-Path $portable 'PortPilot.exe') "PortPilot-$Version-portable.exe" -Force
 }
 
 Write-Host '✓ Done' -ForegroundColor Green

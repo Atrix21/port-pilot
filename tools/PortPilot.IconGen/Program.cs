@@ -1,5 +1,6 @@
 // Renders the PortPilot mark into a multi-resolution .ico and preview PNGs.
 // Usage: dotnet run --project tools/PortPilot.IconGen -- <output-directory>
+//        dotnet run --project tools/PortPilot.IconGen -- --social <card.png> <screenshot.png>
 
 using System.IO;
 using System.Windows;
@@ -13,6 +14,13 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args is ["--social", var card, var screenshot])
+        {
+            File.WriteAllBytes(card, EncodePng(RenderSocialCard(screenshot)));
+            Console.WriteLine($"Wrote social card to {card}");
+            return 0;
+        }
+
         var output = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
         Directory.CreateDirectory(output);
 
@@ -114,6 +122,66 @@ internal static class Program
 
         var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32);
         RenderOptions.SetEdgeMode(visual, EdgeMode.Unspecified);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    /// <summary>
+    /// The 1280×640 card GitHub and X show when the repository link is shared.
+    /// </summary>
+    private static BitmapSource RenderSocialCard(string screenshotPath)
+    {
+        const int width = 1280, height = 640;
+        var display = new Typeface(new FontFamily("Segoe UI Variable Display"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+        var text = new Typeface(new FontFamily("Segoe UI Variable Text"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var mono = new Typeface(new FontFamily("Cascadia Mono"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        var primary = new SolidColorBrush(Color.FromRgb(0xED, 0xED, 0xEF));
+        var secondary = new SolidColorBrush(Color.FromRgb(0xA1, 0xA1, 0xA9));
+        var amber = new SolidColorBrush(Color.FromRgb(0xE9, 0xA3, 0x5C));
+
+        FormattedText Text(string value, Typeface face, double size, Brush brush, double maxWidth = 0)
+        {
+            var formatted = new FormattedText(value, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, size, brush, 1);
+            if (maxWidth > 0)
+            {
+                formatted.MaxTextWidth = maxWidth;
+            }
+
+            return formatted;
+        }
+
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new LinearGradientBrush(Color.FromRgb(0x1A, 0x1A, 0x1D), Color.FromRgb(0x0F, 0x0F, 0x11), 45), null, new Rect(0, 0, width, height));
+            var glow = new RadialGradientBrush(Color.FromArgb(46, 0xE9, 0xA3, 0x5C), Color.FromArgb(0, 0xE9, 0xA3, 0x5C)) { Center = new Point(0.05, 1), GradientOrigin = new Point(0.05, 1), RadiusX = 0.6, RadiusY = 1.0 };
+            dc.DrawRectangle(glow, null, new Rect(0, 0, width, height));
+
+            // The app, bleeding off the right edge.
+            var shot = new BitmapImage();
+            shot.BeginInit();
+            shot.UriSource = new Uri(Path.GetFullPath(screenshotPath));
+            shot.CacheOption = BitmapCacheOption.OnLoad;
+            shot.EndInit();
+            var shotWidth = 760.0;
+            var frame = new Rect(588, 104, shotWidth, shotWidth * shot.PixelHeight / shot.PixelWidth);
+            var shadow = new RadialGradientBrush(Color.FromArgb(140, 0, 0, 0), Color.FromArgb(0, 0, 0, 0)) { RadiusX = 0.6, RadiusY = 0.6 };
+            dc.DrawRectangle(shadow, null, new Rect(frame.X - 60, frame.Y - 20, frame.Width + 120, frame.Height + 100));
+            dc.PushClip(new RectangleGeometry(frame, 14, 14));
+            dc.DrawImage(shot, frame);
+            dc.Pop();
+            dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)), 1), frame, 14, 14);
+
+            // Identity and pitch.
+            dc.DrawImage(Render(192), new Rect(64, 92, 96, 96));
+            dc.DrawText(Text("PortPilot", display, 64, primary), new Point(72, 206));
+            dc.DrawText(Text("Something is already running on port 3000.", display, 30, primary, 480), new Point(74, 300));
+            dc.DrawText(Text("A native Windows app that tells you what it is, and lets you end it with dignity.", text, 21, secondary, 470), new Point(74, 392));
+            dc.DrawText(Text("Windows 10 · 11   ·   native WPF   ·   no Electron", mono, 15, amber), new Point(74, 548));
+        }
+
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(visual);
         bitmap.Freeze();
         return bitmap;
