@@ -1,0 +1,932 @@
+<Window x:Class="PortPilot.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="clr-namespace:PortPilot.App.Controls"
+        xmlns:vm="clr-namespace:PortPilot.App.ViewModels"
+        xmlns:views="clr-namespace:PortPilot.App.Views"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="PortPilot"
+        Width="1280"
+        Height="800"
+        MinWidth="760"
+        MinHeight="520"
+        AutomationProperties.Name="PortPilot"
+        Background="{DynamicResource Bg.Window}"
+        FontFamily="{StaticResource Font.UI}"
+        FontSize="{StaticResource Type.Body}"
+        Foreground="{DynamicResource Text.Primary}"
+        Icon="pack://application:,,,/PortPilot;component/Assets/PortPilot.ico"
+        ResizeMode="CanResize"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44"
+                      CornerRadius="0"
+                      GlassFrameThickness="0,0,0,1"
+                      NonClientFrameEdges="None"
+                      ResizeBorderThickness="6"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <ui:BindingProxy x:Key="Vm" Data="{Binding}" />
+        <ui:TableLayout x:Key="Layout" />
+
+        <!-- ───────────── Row context menu (DataContext is the row) ───────────── -->
+        <ContextMenu x:Key="RowMenu">
+            <MenuItem Command="{Binding Data.OpenInBrowserCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="{Binding UrlDisplay}"
+                      HeaderStringFormat="Open {0}"
+                      InputGestureText="Ctrl+Enter"
+                      ui:Ui.Icon="{StaticResource Icon.External}" />
+            <MenuItem Command="{Binding Data.InspectCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Inspect process"
+                      InputGestureText="Enter"
+                      ui:Ui.Icon="{StaticResource Icon.Info}" />
+            <Separator />
+            <MenuItem Command="{Binding Data.CopyUrlCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Copy URL"
+                      InputGestureText="Ctrl+Shift+C"
+                      ui:Ui.Icon="{StaticResource Icon.Globe}" />
+            <MenuItem Command="{Binding Data.CopyPortCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Copy port"
+                      ui:Ui.Icon="{StaticResource Icon.Hash}" />
+            <MenuItem Command="{Binding Data.CopyPidCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Copy PID"
+                      ui:Ui.Icon="{StaticResource Icon.Cpu}" />
+            <MenuItem Command="{Binding Data.CopyCommandLineCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Copy command line"
+                      ui:Ui.Icon="{StaticResource Icon.Terminal}" />
+            <MenuItem Command="{Binding Data.CopyDetailsCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Copy details"
+                      InputGestureText="Ctrl+C"
+                      ui:Ui.Icon="{StaticResource Icon.Copy}" />
+            <Separator />
+            <MenuItem Command="{Binding Data.RevealCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Show in File Explorer"
+                      InputGestureText="Ctrl+E"
+                      ui:Ui.Icon="{StaticResource Icon.Folder}" />
+            <Separator />
+            <MenuItem Command="{Binding Data.TerminateCommand, Source={StaticResource Vm}}"
+                      CommandParameter="{Binding}"
+                      Header="Terminate process…"
+                      InputGestureText="Del"
+                      ui:Ui.Icon="{StaticResource Icon.Power}"
+                      ui:Ui.IsDestructive="True" />
+        </ContextMenu>
+
+        <!-- ───────────── Table row ───────────── -->
+        <DataTemplate x:Key="RowTemplate" DataType="{x:Type vm:PortRowViewModel}">
+            <Grid x:Name="RowGrid" Background="Transparent" ContextMenu="{StaticResource RowMenu}">
+                <Grid.InputBindings>
+                    <MouseBinding Command="{Binding Data.OpenInBrowserCommand, Source={StaticResource Vm}}" CommandParameter="{Binding}" Gesture="LeftDoubleClick" />
+                </Grid.InputBindings>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{Binding PortWidth, Source={StaticResource Layout}}" />
+                    <ColumnDefinition Width="*" MinWidth="160" />
+                    <ColumnDefinition Width="{Binding PidWidth, Source={StaticResource Layout}}" />
+                    <ColumnDefinition Width="{Binding ProtocolWidth, Source={StaticResource Layout}}" />
+                    <ColumnDefinition Width="{Binding AddressWidth, Source={StaticResource Layout}}" />
+                    <ColumnDefinition Width="{Binding StatusWidth, Source={StaticResource Layout}}" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Port -->
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock FontSize="14" Style="{StaticResource Text.Mono}" Text="{Binding PortText}" />
+                    <TextBlock Margin="0,2,0,0"
+                               Style="{StaticResource Text.Micro}"
+                               Text="{Binding KnownName}"
+                               Visibility="{Binding KnownName, Converter={StaticResource VisibleWhen}}" />
+                </StackPanel>
+
+                <!-- Process -->
+                <Grid Grid.Column="1" Margin="0,0,20,0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:ProcessIcon NameText="{Binding ProcessName}" Path="{Binding ExecutablePath}" />
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Style="{StaticResource Text.Body}" Text="{Binding ProcessName}" />
+                        <TextBlock Margin="0,2,0,0"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   Style="{StaticResource Text.Micro}"
+                                   Text="{Binding ProcessDetail}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- PID -->
+                <TextBlock Grid.Column="2"
+                           VerticalAlignment="Center"
+                           FontSize="12.5"
+                           Foreground="{DynamicResource Text.Secondary}"
+                           Style="{StaticResource Text.Mono}"
+                           Text="{Binding PidText}" />
+
+                <!-- Protocol -->
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal">
+                    <Border Style="{StaticResource ProtocolPill}">
+                        <TextBlock Style="{StaticResource ProtocolPill.Text}" Text="{Binding ProtocolText}" />
+                    </Border>
+                    <TextBlock Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource Text.Micro}"
+                               Text="{Binding FamilyText}" />
+                </StackPanel>
+
+                <!-- Address -->
+                <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <TextBlock FontSize="12.5" Style="{StaticResource Text.Mono}" Text="{Binding AddressText}" />
+                    <TextBlock Margin="0,2,0,0" Style="{StaticResource Text.Micro}" Text="{Binding AddressScope}" />
+                </StackPanel>
+
+                <!-- Status, swapped for quick actions on hover -->
+                <Grid Grid.Column="5">
+                    <StackPanel x:Name="Status" VerticalAlignment="Center" Orientation="Horizontal">
+                        <Grid Width="7" Height="7" VerticalAlignment="Center">
+                            <Ellipse x:Name="Ripple" Opacity="0" RenderTransformOrigin="0.5,0.5" Style="{StaticResource StatusDot}">
+                                <Ellipse.RenderTransform>
+                                    <ScaleTransform />
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Ellipse Style="{StaticResource StatusDot}" />
+                        </Grid>
+                        <TextBlock Margin="9,0,0,0" VerticalAlignment="Center" Style="{StaticResource StatusText}" Text="{Binding StatusText}" />
+                    </StackPanel>
+                    <StackPanel x:Name="Actions"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False"
+                                Opacity="0"
+                                Orientation="Horizontal">
+                        <Button Command="{Binding Data.OpenInBrowserCommand, Source={StaticResource Vm}}"
+                                CommandParameter="{Binding}"
+                                Style="{StaticResource Button.IconSmall}"
+                                ToolTip="{Binding UrlDisplay}"
+                                ToolTipService.InitialShowDelay="350"
+                                Visibility="{Binding CanOpenInBrowser, Converter={StaticResource VisibleWhen}}"
+                                ui:Ui.Icon="{StaticResource Icon.External}" />
+                        <Button Margin="2,0,0,0"
+                                Command="{Binding Data.CopyDetailsCommand, Source={StaticResource Vm}}"
+                                CommandParameter="{Binding}"
+                                Style="{StaticResource Button.IconSmall}"
+                                ToolTip="Copy details"
+                                ToolTipService.InitialShowDelay="350"
+                                ui:Ui.Icon="{StaticResource Icon.Copy}" />
+                        <Button Margin="2,0,0,0"
+                                Command="{Binding Data.TerminateCommand, Source={StaticResource Vm}}"
+                                CommandParameter="{Binding}"
+                                Style="{StaticResource Button.IconSmall}"
+                                ToolTip="Terminate process"
+                                ToolTipService.InitialShowDelay="350"
+                                ui:Ui.Icon="{StaticResource Icon.Power}"
+                                ui:Ui.IsDestructive="True" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+            <DataTemplate.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True" />
+                        <Condition Binding="{Binding IsClosed}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter TargetName="Actions" Property="IsHitTestVisible" Value="True" />
+                    <MultiDataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="Actions" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.12" />
+                                <DoubleAnimation Storyboard.TargetName="Status" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.08" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </MultiDataTrigger.EnterActions>
+                    <MultiDataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="Actions" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.12" />
+                                <DoubleAnimation Storyboard.TargetName="Status" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </MultiDataTrigger.ExitActions>
+                </MultiDataTrigger>
+                <DataTrigger Binding="{Binding IsNew}" Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="NewRipple">
+                            <Storyboard RepeatBehavior="3x" Timeline.DesiredFrameRate="30">
+                                <DoubleAnimation Storyboard.TargetName="Ripple" Storyboard.TargetProperty="Opacity" From="0.6" To="0" Duration="0:0:1.4" />
+                                <DoubleAnimation Storyboard.TargetName="Ripple" Storyboard.TargetProperty="RenderTransform.ScaleX" From="1" To="2.8" Duration="0:0:1.4" EasingFunction="{StaticResource Ease.Out}" />
+                                <DoubleAnimation Storyboard.TargetName="Ripple" Storyboard.TargetProperty="RenderTransform.ScaleY" From="1" To="2.8" Duration="0:0:1.4" EasingFunction="{StaticResource Ease.Out}" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <StopStoryboard BeginStoryboardName="NewRipple" />
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <!-- Skeleton row shown while the first scan runs -->
+        <Style x:Key="SkeletonBar" TargetType="Border">
+            <Setter Property="Height" Value="9" />
+            <Setter Property="CornerRadius" Value="4.5" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="Background" Value="{DynamicResource Skeleton}" />
+        </Style>
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RefreshCommand}" />
+        <KeyBinding Command="{Binding RefreshCommand}" Gesture="Ctrl+R" />
+        <KeyBinding Command="{Binding TogglePauseCommand}" Gesture="Ctrl+P" />
+        <KeyBinding Command="{Binding ToggleSettingsCommand}" Gesture="Ctrl+OemComma" />
+        <KeyBinding Command="{Binding ToggleShortcutsCommand}" Gesture="Ctrl+OemQuestion" />
+        <KeyBinding Key="F1" Command="{Binding ToggleShortcutsCommand}" />
+        <KeyBinding Command="{Binding ToggleThemeCommand}" Gesture="Ctrl+T" />
+        <KeyBinding Command="{Binding ToggleListeningOnlyCommand}" Gesture="Ctrl+L" />
+        <KeyBinding Command="{Binding ToggleDevPortsOnlyCommand}" Gesture="Ctrl+D" />
+        <KeyBinding Command="{Binding SetProtocolCommand}" CommandParameter="All" Gesture="Ctrl+D1" />
+        <KeyBinding Command="{Binding SetProtocolCommand}" CommandParameter="Tcp" Gesture="Ctrl+D2" />
+        <KeyBinding Command="{Binding SetProtocolCommand}" CommandParameter="Udp" Gesture="Ctrl+D3" />
+        <KeyBinding Command="{Binding OpenInBrowserCommand}" CommandParameter="{Binding SelectedRow}" Gesture="Ctrl+Enter" />
+        <KeyBinding Command="{Binding OpenInBrowserCommand}" CommandParameter="{Binding SelectedRow}" Gesture="Ctrl+O" />
+        <KeyBinding Command="{Binding CopyDetailsCommand}" CommandParameter="{Binding SelectedRow}" Gesture="Ctrl+C" />
+        <KeyBinding Command="{Binding CopyUrlCommand}" CommandParameter="{Binding SelectedRow}" Gesture="Ctrl+Shift+C" />
+        <KeyBinding Command="{Binding RevealCommand}" CommandParameter="{Binding SelectedRow}" Gesture="Ctrl+E" />
+        <KeyBinding Key="Delete" Command="{Binding TerminateCommand}" CommandParameter="{Binding SelectedRow}" />
+        <KeyBinding Command="{Binding QuitCommand}" Gesture="Ctrl+Q" />
+    </Window.InputBindings>
+
+    <Grid x:Name="Root" Background="{DynamicResource Bg.Window}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="32" />
+        </Grid.RowDefinitions>
+
+        <!-- ═════════════ Title bar ═════════════ -->
+        <Grid x:Name="TitleBar" Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Margin="16,0,0,0" VerticalAlignment="Center" Orientation="Horizontal">
+                <!-- Brand mark: the app icon, drawn as vectors -->
+                <Grid Width="20" Height="20">
+                    <Border CornerRadius="5">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                                <GradientStop Offset="0" Color="#34333A" />
+                                <GradientStop Offset="1" Color="#17171A" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <Path Data="M14.92,9.13 A5.0,5.0 0 1 1 10.87,5.08" StrokeEndLineCap="Round" StrokeStartLineCap="Round" StrokeThickness="1.7">
+                        <Path.Stroke>
+                            <LinearGradientBrush StartPoint="0.2,0" EndPoint="0.8,1">
+                                <GradientStop Offset="0" Color="#F4B876" />
+                                <GradientStop Offset="1" Color="#E0934A" />
+                            </LinearGradientBrush>
+                        </Path.Stroke>
+                    </Path>
+                    <Ellipse Width="3.2" Height="3.2" Fill="#EBA45E" />
+                    <Ellipse Width="2.4" Height="2.4" Margin="0,4.3,4.3,0" HorizontalAlignment="Right" VerticalAlignment="Top" Fill="#F7E6D2" />
+                </Grid>
+                <TextBlock Margin="10,0,0,1" VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource Text.Body}" Text="PortPilot" />
+            </StackPanel>
+
+            <!-- Live indicator -->
+            <Button x:Name="LiveButton"
+                    Grid.Column="2"
+                    Margin="0,0,10,0"
+                    VerticalAlignment="Center"
+                    AutomationProperties.Name="Toggle live monitoring"
+                    Command="{Binding TogglePauseCommand}"
+                    ToolTip="Pause or resume live updates  ·  Ctrl+P"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="Root" Height="26" Background="Transparent" RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform />
+                            </Grid.RenderTransform>
+                            <Border Background="{DynamicResource Fill.Subtle}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1" CornerRadius="13" />
+                            <Border x:Name="Hover" Background="{DynamicResource Fill.Hover}" CornerRadius="13" Opacity="0" />
+                            <StackPanel Margin="11,0,12,0" VerticalAlignment="Center" Orientation="Horizontal">
+                                <Grid Width="8" Height="8" VerticalAlignment="Center">
+                                    <Ellipse x:Name="LiveRipple" Fill="{DynamicResource Positive}" Opacity="0" RenderTransformOrigin="0.5,0.5">
+                                        <Ellipse.RenderTransform>
+                                            <ScaleTransform />
+                                        </Ellipse.RenderTransform>
+                                    </Ellipse>
+                                    <Ellipse x:Name="LiveDot" Fill="{DynamicResource Positive}" />
+                                </Grid>
+                                <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource Text.Caption}" Text="{Binding LiveText}" Foreground="{DynamicResource Text.Primary}" />
+                                <TextBlock Margin="5,0,0,0" VerticalAlignment="Center" Style="{StaticResource Text.Caption}" Text="{Binding IntervalText}" Foreground="{DynamicResource Text.Tertiary}" />
+                            </StackPanel>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard Storyboard="{StaticResource Sb.HoverIn}" />
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard Storyboard="{StaticResource Sb.HoverOut}" />
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard Storyboard="{StaticResource Sb.PressIn}" />
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard Storyboard="{StaticResource Sb.PressOut}" />
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsPaused}" Value="True">
+                                <Setter TargetName="LiveDot" Property="Fill" Value="{DynamicResource Text.Tertiary}" />
+                                <Setter TargetName="LiveRipple" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
+
+            <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <Button VerticalAlignment="Center"
+                        AutomationProperties.Name="Toggle theme"
+                        Command="{Binding ToggleThemeCommand}"
+                        ToolTip="Switch appearance  ·  Ctrl+T"
+                        WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource Button.Icon}">
+                            <Setter Property="ui:Ui.Icon" Value="{StaticResource Icon.Moon}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDarkTheme}" Value="True">
+                                    <Setter Property="ui:Ui.Icon" Value="{StaticResource Icon.Sun}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Margin="2,0,0,0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="Settings"
+                        Command="{Binding ToggleSettingsCommand}"
+                        Style="{StaticResource Button.Icon}"
+                        ToolTip="Settings  ·  Ctrl+,"
+                        WindowChrome.IsHitTestVisibleInChrome="True"
+                        ui:Ui.Icon="{StaticResource Icon.Sliders}" />
+
+                <Border Height="16" Margin="12,0,4,0" VerticalAlignment="Center" Style="{StaticResource Divider.Vertical}" />
+
+                <Button x:Name="MinimizeButton"
+                        AutomationProperties.Name="Minimize"
+                        Click="OnMinimizeClick"
+                        Content="&#xE921;"
+                        Style="{StaticResource Button.Caption}"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+                <Button x:Name="MaximizeButton"
+                        AutomationProperties.Name="Maximize"
+                        Click="OnMaximizeClick"
+                        Content="&#xE922;"
+                        Style="{StaticResource Button.Caption}"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+                <Button x:Name="CloseButton"
+                        AutomationProperties.Name="Close"
+                        Click="OnCloseClick"
+                        Content="&#xE8BB;"
+                        Style="{StaticResource Button.CaptionClose}"
+                        WindowChrome.IsHitTestVisibleInChrome="True" />
+            </StackPanel>
+        </Grid>
+
+        <!-- ═════════════ Header ═════════════ -->
+        <Grid Grid.Row="1" Margin="28,14,28,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock x:Name="PageTitle" Style="{StaticResource Text.Display}" Text="Listening ports" />
+                <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Caption}" Text="{Binding HeaderSubtitle}" />
+            </StackPanel>
+
+            <!-- Search -->
+            <Grid Grid.Column="1" Width="360" Margin="24,0,0,0" VerticalAlignment="Center">
+                <Border x:Name="SearchRing" Margin="-3" BorderBrush="{DynamicResource Accent.Soft}" BorderThickness="3" CornerRadius="13" Opacity="0" />
+                <Border x:Name="SearchBox"
+                        Height="38"
+                        Background="{DynamicResource Bg.Input}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Default}" />
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                    <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:Icon Margin="12,0,9,0" VerticalAlignment="Center" Data="{StaticResource Icon.Search}" Foreground="{DynamicResource Text.Tertiary}" Size="16" />
+                        <TextBlock Grid.Column="1"
+                                   Margin="1,0,0,1"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Style="{StaticResource Text.Base}"
+                                   Foreground="{DynamicResource Text.Tertiary}"
+                                   Text="Search process, PID or port"
+                                   Visibility="{Binding HasSearchText, Converter={StaticResource HiddenWhen}}" />
+                        <TextBox x:Name="SearchInput"
+                                 Grid.Column="1"
+                                 VerticalAlignment="Center"
+                                 AutomationProperties.Name="Search"
+                                 PreviewKeyDown="OnSearchPreviewKeyDown"
+                                 Style="{StaticResource TextBox.Bare}"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="2"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                AutomationProperties.Name="Clear search"
+                                Command="{Binding ClearSearchCommand}"
+                                IsTabStop="False"
+                                Style="{StaticResource Button.IconSmall}"
+                                ToolTip="Clear  ·  Esc"
+                                Visibility="{Binding HasSearchText, Converter={StaticResource VisibleWhen}}"
+                                ui:Ui.Icon="{StaticResource Icon.Close}"
+                                ui:Ui.IconSize="14" />
+                        <StackPanel Grid.Column="2"
+                                    Margin="0,0,10,0"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Visibility="{Binding HasSearchText, Converter={StaticResource HiddenWhen}}">
+                            <Border Style="{StaticResource Keycap}">
+                                <TextBlock Style="{StaticResource Keycap.Text}" Text="Ctrl" />
+                            </Border>
+                            <Border Margin="3,0,0,0" Style="{StaticResource Keycap}">
+                                <TextBlock Style="{StaticResource Keycap.Text}" Text="F" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ═════════════ Filters ═════════════ -->
+        <Grid Grid.Row="2" Margin="28,18,28,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource Segmented.Track}">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton AutomationProperties.Name="All protocols"
+                                 Content="All"
+                                 GroupName="Protocol"
+                                 IsChecked="{Binding Protocol, Converter={StaticResource Equals}, ConverterParameter=All}"
+                                 Style="{StaticResource Segment}"
+                                 ToolTip="All protocols  ·  Ctrl+1" />
+                    <RadioButton AutomationProperties.Name="TCP only"
+                                 Content="TCP"
+                                 GroupName="Protocol"
+                                 IsChecked="{Binding Protocol, Converter={StaticResource Equals}, ConverterParameter=Tcp}"
+                                 Style="{StaticResource Segment}"
+                                 ToolTip="TCP only  ·  Ctrl+2" />
+                    <RadioButton AutomationProperties.Name="UDP only"
+                                 Content="UDP"
+                                 GroupName="Protocol"
+                                 IsChecked="{Binding Protocol, Converter={StaticResource Equals}, ConverterParameter=Udp}"
+                                 Style="{StaticResource Segment}"
+                                 ToolTip="UDP only  ·  Ctrl+3" />
+                </StackPanel>
+            </Border>
+
+            <StackPanel Grid.Column="1" Margin="12,0,0,0" Orientation="Horizontal">
+                <ToggleButton Content="Listening only"
+                              IsChecked="{Binding ListeningOnly}"
+                              Style="{StaticResource Chip}"
+                              ToolTip="Hide outgoing and closing connections  ·  Ctrl+L"
+                              ui:Ui.Icon="{StaticResource Icon.Radar}" />
+                <ToggleButton Margin="8,0,0,0"
+                              Content="Dev ports"
+                              IsChecked="{Binding DevPortsOnly}"
+                              Style="{StaticResource Chip}"
+                              ToolTip="Only common development ports such as 3000, 5173 and 5432  ·  Ctrl+D"
+                              ui:Ui.Icon="{StaticResource Icon.Sparkle}" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal">
+                <TextBlock Margin="0,0,14,0" VerticalAlignment="Center" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding CountText}" Visibility="{Binding IsFiltered, Converter={StaticResource VisibleWhen}}" />
+                <Button x:Name="RefreshButton"
+                        AutomationProperties.Name="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        Style="{StaticResource Button.Secondary}"
+                        Height="30"
+                        Padding="10,0,12,0"
+                        ToolTip="Scan now  ·  F5">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:Icon x:Name="RefreshGlyph" Data="{StaticResource Icon.Refresh}" RenderTransformOrigin="0.5,0.5" Size="15">
+                            <ui:Icon.RenderTransform>
+                                <RotateTransform />
+                            </ui:Icon.RenderTransform>
+                        </ui:Icon>
+                        <TextBlock Margin="7,0,0,0" VerticalAlignment="Center" FontSize="{StaticResource Type.Caption}" Text="Refresh" />
+                    </StackPanel>
+                    <Button.Triggers>
+                        <EventTrigger RoutedEvent="ButtonBase.Click">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="RefreshGlyph" Storyboard.TargetProperty="RenderTransform.Angle" From="0" To="360" Duration="0:0:0.6" EasingFunction="{StaticResource Ease.OutStrong}" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </Button.Triggers>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ═════════════ Content ═════════════ -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Grid x:Name="TableArea" SizeChanged="OnTableSizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Grid Margin="28,0,28,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{Binding PortWidth, Source={StaticResource Layout}}" />
+                        <ColumnDefinition Width="*" MinWidth="160" />
+                        <ColumnDefinition Width="{Binding PidWidth, Source={StaticResource Layout}}" />
+                        <ColumnDefinition Width="{Binding ProtocolWidth, Source={StaticResource Layout}}" />
+                        <ColumnDefinition Width="{Binding AddressWidth, Source={StaticResource Layout}}" />
+                        <ColumnDefinition Width="{Binding StatusWidth, Source={StaticResource Layout}}" />
+                    </Grid.ColumnDefinitions>
+                    <Button Command="{Binding SortCommand}" CommandParameter="Port" Content="Port" Style="{StaticResource Table.Header}">
+                        <Button.Tag>
+                            <MultiBinding Converter="{StaticResource SortTag}" ConverterParameter="Port">
+                                <Binding Path="SortColumn" />
+                                <Binding Path="SortDescending" />
+                            </MultiBinding>
+                        </Button.Tag>
+                    </Button>
+                    <Button Grid.Column="1" Command="{Binding SortCommand}" CommandParameter="Process" Content="Process" Style="{StaticResource Table.Header}">
+                        <Button.Tag>
+                            <MultiBinding Converter="{StaticResource SortTag}" ConverterParameter="Process">
+                                <Binding Path="SortColumn" />
+                                <Binding Path="SortDescending" />
+                            </MultiBinding>
+                        </Button.Tag>
+                    </Button>
+                    <Button Grid.Column="2" Command="{Binding SortCommand}" CommandParameter="Pid" Content="PID" Style="{StaticResource Table.Header}">
+                        <Button.Tag>
+                            <MultiBinding Converter="{StaticResource SortTag}" ConverterParameter="Pid">
+                                <Binding Path="SortColumn" />
+                                <Binding Path="SortDescending" />
+                            </MultiBinding>
+                        </Button.Tag>
+                    </Button>
+                    <Button Grid.Column="3" Command="{Binding SortCommand}" CommandParameter="Protocol" Content="Protocol" Style="{StaticResource Table.Header}">
+                        <Button.Tag>
+                            <MultiBinding Converter="{StaticResource SortTag}" ConverterParameter="Protocol">
+                                <Binding Path="SortColumn" />
+                                <Binding Path="SortDescending" />
+                            </MultiBinding>
+                        </Button.Tag>
+                    </Button>
+                    <Button Grid.Column="4" Command="{Binding SortCommand}" CommandParameter="Address" Content="Address" Style="{StaticResource Table.Header}">
+                        <Button.Tag>
+                            <MultiBinding Converter="{StaticResource SortTag}" ConverterParameter="Address">
+                                <Binding Path="SortColumn" />
+                                <Binding Path="SortDescending" />
+                            </MultiBinding>
+                        </Button.Tag>
+                    </Button>
+                    <Button Grid.Column="5" Command="{Binding SortCommand}" CommandParameter="Status" Content="Status" Style="{StaticResource Table.Header}">
+                        <Button.Tag>
+                            <MultiBinding Converter="{StaticResource SortTag}" ConverterParameter="Status">
+                                <Binding Path="SortColumn" />
+                                <Binding Path="SortDescending" />
+                            </MultiBinding>
+                        </Button.Tag>
+                    </Button>
+                </Grid>
+                <Border Margin="12,0" VerticalAlignment="Bottom" Style="{StaticResource Divider}" />
+
+                <!-- Rows -->
+                <ListBox x:Name="Table"
+                         Grid.Row="1"
+                         AutomationProperties.Name="Ports"
+                         ItemContainerStyle="{StaticResource Table.Row}"
+                         ItemTemplate="{StaticResource RowTemplate}"
+                         ItemsSource="{Binding RowsView}"
+                         KeyDown="OnTableKeyDown"
+                         SelectedItem="{Binding SelectedRow}"
+                         SelectionMode="Single"
+                         Style="{StaticResource Table}" />
+
+                <!-- Empty: discovering -->
+                <StackPanel x:Name="Skeleton"
+                            Grid.Row="1"
+                            Margin="28,10,28,0"
+                            IsHitTestVisible="False"
+                            ui:Reveal.IsShown="{Binding EmptyState, Converter={StaticResource Equals}, ConverterParameter=Discovering}">
+                    <StackPanel x:Name="SkeletonRows" />
+                    <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Tertiary}" Text="Discovering listening ports…" />
+                </StackPanel>
+
+                <!-- Empty: nothing listening -->
+                <StackPanel Grid.Row="1"
+                            MaxWidth="380"
+                            Margin="24,0,24,48"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            ui:Reveal.IsShown="{Binding EmptyState, Converter={StaticResource Equals}, ConverterParameter=NoPorts}"
+                            ui:Reveal.Offset="8">
+                    <Grid Width="56" Height="56" HorizontalAlignment="Center">
+                        <Ellipse Fill="{DynamicResource Fill.Subtle}" Stroke="{DynamicResource Stroke.Hairline}" />
+                        <ui:Icon HorizontalAlignment="Center" VerticalAlignment="Center" Data="{StaticResource Icon.Radar}" Foreground="{DynamicResource Text.Secondary}" Size="26" />
+                    </Grid>
+                    <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" Style="{StaticResource Text.Title}" Text="Nothing is listening" />
+                    <TextBlock Margin="0,6,0,0"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource Text.Muted}"
+                               Text="Start a dev server, database or any service and it will appear here within a couple of seconds."
+                               TextAlignment="Center"
+                               TextTrimming="None"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!-- Empty: no results -->
+                <StackPanel Grid.Row="1"
+                            MaxWidth="400"
+                            Margin="24,0,24,48"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            ui:Reveal.IsShown="{Binding EmptyState, Converter={StaticResource Equals}, ConverterParameter=NoResults}"
+                            ui:Reveal.Offset="8">
+                    <Grid Width="56" Height="56" HorizontalAlignment="Center">
+                        <Ellipse Fill="{DynamicResource Fill.Subtle}" Stroke="{DynamicResource Stroke.Hairline}" />
+                        <ui:Icon HorizontalAlignment="Center" VerticalAlignment="Center" Data="{StaticResource Icon.SearchOff}" Foreground="{DynamicResource Text.Secondary}" Size="26" />
+                    </Grid>
+                    <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" Style="{StaticResource Text.Title}" Text="{Binding NoResultsTitle}" />
+                    <TextBlock Margin="0,6,0,0"
+                               HorizontalAlignment="Center"
+                               Style="{StaticResource Text.Muted}"
+                               Text="{Binding NoResultsMessage}"
+                               TextAlignment="Center"
+                               TextTrimming="None"
+                               TextWrapping="Wrap" />
+                    <Button Margin="0,18,0,0" HorizontalAlignment="Center" Command="{Binding ClearFiltersCommand}" Content="Clear search and filters" Style="{StaticResource Button.Secondary}" />
+                </StackPanel>
+            </Grid>
+
+            <!-- Inspector -->
+            <Border x:Name="InspectorHost"
+                    Grid.Column="1"
+                    Width="0"
+                    ClipToBounds="True"
+                    Background="{DynamicResource Bg.Panel}"
+                    BorderBrush="{DynamicResource Stroke.Hairline}"
+                    BorderThickness="1,1,0,0"
+                    CornerRadius="12,0,0,0">
+                <views:InspectorView x:Name="Inspector" Width="372" HorizontalAlignment="Left" />
+            </Border>
+        </Grid>
+
+        <!-- ═════════════ Status bar ═════════════ -->
+        <Grid Grid.Row="4">
+            <Border VerticalAlignment="Top" Style="{StaticResource Divider}" />
+            <Grid Margin="20,0,12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <ui:Icon Margin="0,0,7,0" VerticalAlignment="Center" Data="{StaticResource Icon.Clock}" Foreground="{DynamicResource Text.Tertiary}" Size="13" />
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Micro}" Text="{Binding StatusText}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal">
+                    <StackPanel Margin="0,0,14,0" Orientation="Horizontal" Visibility="{Binding HasRestrictedProcesses, Converter={StaticResource VisibleWhen}}">
+                        <ui:Icon Margin="0,0,6,0" VerticalAlignment="Center" Data="{StaticResource Icon.Lock}" Foreground="{DynamicResource Caution}" Size="13" />
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Micro}" Text="Some processes need administrator access" />
+                        <Button Margin="8,0,0,0" VerticalAlignment="Center" Command="{Binding RestartAsAdminCommand}" Content="Restart as admin" FontSize="{StaticResource Type.Micro}" Style="{StaticResource Button.Link}" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,14,0" Orientation="Horizontal" Visibility="{Binding IsElevated, Converter={StaticResource VisibleWhen}}" ToolTip="PortPilot is running with administrator privileges">
+                        <ui:Icon Margin="0,0,6,0" VerticalAlignment="Center" Data="{StaticResource Icon.Shield}" Foreground="{DynamicResource Accent}" Size="13" />
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Micro}" Text="Administrator" />
+                    </StackPanel>
+                    <Button Height="24"
+                            Padding="8,0"
+                            Command="{Binding ToggleShortcutsCommand}"
+                            Style="{StaticResource Button.Ghost}"
+                            ToolTip="Keyboard shortcuts  ·  Ctrl+/"
+                            ui:Ui.Icon="{StaticResource Icon.Keyboard}"
+                            ui:Ui.IconSize="14">
+                        <TextBlock FontSize="{StaticResource Type.Micro}" Text="Shortcuts" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ═════════════ Toasts ═════════════ -->
+        <ItemsControl Grid.Row="0"
+                      Grid.RowSpan="5"
+                      Margin="0,0,0,48"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Bottom"
+                      Focusable="False"
+                      ItemsSource="{Binding Toasts}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:ToastViewModel}">
+                    <Grid x:Name="ToastRoot" Margin="0,6,0,0" HorizontalAlignment="Center" RenderTransformOrigin="0.5,1">
+                        <Grid.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform />
+                                <TranslateTransform />
+                            </TransformGroup>
+                        </Grid.RenderTransform>
+                        <Border Background="{DynamicResource Toast.Bg}" CornerRadius="10">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="22" Direction="270" Opacity="0.28" ShadowDepth="6" Color="Black" />
+                            </Border.Effect>
+                        </Border>
+                        <Border Padding="12,9,16,10" Background="{DynamicResource Toast.Bg}" BorderBrush="{DynamicResource Toast.Stroke}" BorderThickness="1" CornerRadius="10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:Icon x:Name="ToastIcon" Margin="0,1,10,0" VerticalAlignment="Top" Data="{StaticResource Icon.Check}" Foreground="#62C391" Size="16" StrokeThickness="1.75" />
+                                <StackPanel Grid.Column="1" MaxWidth="420">
+                                    <TextBlock FontFamily="{StaticResource Font.UI}" FontSize="{StaticResource Type.Body}" Foreground="{DynamicResource Toast.Text}" Text="{Binding Message}" TextWrapping="Wrap" />
+                                    <TextBlock Margin="0,2,0,0"
+                                               FontFamily="{StaticResource Font.UI}"
+                                               FontSize="{StaticResource Type.Caption}"
+                                               Foreground="{DynamicResource Toast.Muted}"
+                                               Text="{Binding Detail}"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding Detail, Converter={StaticResource VisibleWhen}}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Kind}" Value="Error">
+                            <Setter TargetName="ToastIcon" Property="Data" Value="{StaticResource Icon.Alert}" />
+                            <Setter TargetName="ToastIcon" Property="Foreground" Value="#F0786C" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="Warning">
+                            <Setter TargetName="ToastIcon" Property="Data" Value="{StaticResource Icon.Alert}" />
+                            <Setter TargetName="ToastIcon" Property="Foreground" Value="#E2B657" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="Info">
+                            <Setter TargetName="ToastIcon" Property="Data" Value="{StaticResource Icon.Info}" />
+                            <Setter TargetName="ToastIcon" Property="Foreground" Value="#B4B4BC" />
+                        </DataTrigger>
+                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="ToastRoot" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:0.18" />
+                                    <DoubleAnimation Storyboard.TargetName="ToastRoot" Storyboard.TargetProperty="RenderTransform.Children[1].Y" From="12" To="0" Duration="0:0:0.28" EasingFunction="{StaticResource Ease.OutStrong}" />
+                                    <DoubleAnimation Storyboard.TargetName="ToastRoot" Storyboard.TargetProperty="RenderTransform.Children[0].ScaleX" From="0.96" To="1" Duration="0:0:0.28" EasingFunction="{StaticResource Ease.OutStrong}" />
+                                    <DoubleAnimation Storyboard.TargetName="ToastRoot" Storyboard.TargetProperty="RenderTransform.Children[0].ScaleY" From="0.96" To="1" Duration="0:0:0.28" EasingFunction="{StaticResource Ease.OutStrong}" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <DataTrigger Binding="{Binding IsLeaving}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ToastRoot" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.2" />
+                                        <DoubleAnimation Storyboard.TargetName="ToastRoot" Storyboard.TargetProperty="RenderTransform.Children[1].Y" To="6" Duration="0:0:0.2" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ═════════════ Sheets & dialogs ═════════════ -->
+        <Grid x:Name="SettingsLayer"
+              Grid.Row="1"
+              Grid.RowSpan="4"
+              ui:Reveal.IsShown="{Binding IsSettingsOpen}"
+              ui:Reveal.MotionTarget="{Binding ElementName=SettingsSheet}"
+              ui:Reveal.Offset="10"
+              ui:Reveal.Scale="0.98">
+            <Border Background="{DynamicResource Scrim}" MouseLeftButtonDown="OnScrimClick" Tag="Settings" />
+            <views:SettingsView x:Name="SettingsSheet" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+
+        <Grid x:Name="ShortcutsLayer"
+              Grid.Row="1"
+              Grid.RowSpan="4"
+              ui:Reveal.IsShown="{Binding IsShortcutsOpen}"
+              ui:Reveal.MotionTarget="{Binding ElementName=ShortcutsSheet}"
+              ui:Reveal.Offset="10"
+              ui:Reveal.Scale="0.98">
+            <Border Background="{DynamicResource Scrim}" MouseLeftButtonDown="OnScrimClick" Tag="Shortcuts" />
+            <views:ShortcutsView x:Name="ShortcutsSheet" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Grid>
+
+        <Grid x:Name="DialogLayer"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              ui:Reveal.IsShown="{Binding IsDialogOpen}"
+              ui:Reveal.MotionTarget="{Binding ElementName=DialogCard}"
+              ui:Reveal.Scale="0.96">
+            <Border Background="{DynamicResource Scrim}" />
+            <Grid x:Name="DialogCard" Width="440" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" DataContext="{Binding Dialog}">
+                <Border CornerRadius="14" Background="{DynamicResource Bg.Elevated}">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="40" Direction="270" Opacity="{DynamicResource ShadowOpacity}" ShadowDepth="12" Color="{DynamicResource ShadowColor}" />
+                    </Border.Effect>
+                </Border>
+                <Border Padding="24,24,24,20" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="40" Height="40" VerticalAlignment="Top">
+                                <Ellipse Fill="{DynamicResource Negative.Soft}" />
+                                <ui:Icon HorizontalAlignment="Center" VerticalAlignment="Center" Data="{StaticResource Icon.Power}" Foreground="{DynamicResource Negative}" Size="20" StrokeThickness="1.75" />
+                            </Grid>
+                            <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                                <TextBlock FontSize="16" Style="{StaticResource Text.Title}" Text="{Binding Title}" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,6,0,0" LineHeight="19" Style="{StaticResource Text.Muted}" Text="{Binding Message}" TextTrimming="None" TextWrapping="Wrap" />
+                                <Border Margin="0,14,0,0"
+                                        Padding="10,6"
+                                        HorizontalAlignment="Left"
+                                        Background="{DynamicResource Fill.Subtle}"
+                                        BorderBrush="{DynamicResource Stroke.Hairline}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        Visibility="{Binding Detail, Converter={StaticResource VisibleWhen}}">
+                                    <TextBlock Style="{StaticResource Text.MonoSmall}" Text="{Binding Detail}" />
+                                </Border>
+                                <StackPanel Margin="0,12,0,0" Orientation="Horizontal" Visibility="{Binding Note, Converter={StaticResource VisibleWhen}}">
+                                    <ui:Icon Margin="0,0,7,0" VerticalAlignment="Center" Data="{StaticResource Icon.Shield}" Foreground="{DynamicResource Caution}" Size="14" />
+                                    <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Caption}" Text="{Binding Note}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                        <StackPanel Margin="0,24,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                            <Button x:Name="DialogCancel" MinWidth="88" AutomationProperties.AutomationId="DialogCancel" Command="{Binding CancelCommand}" Content="{Binding CancelText}" Style="{StaticResource Button.Secondary}" />
+                            <Button MinWidth="104" Margin="8,0,0,0" AutomationProperties.AutomationId="DialogConfirm" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" Style="{StaticResource Button.DangerSolid}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Cross-fade snapshot used for theme transitions -->
+        <Image x:Name="ThemeSnapshot"
+               Grid.Row="0"
+               Grid.RowSpan="5"
+               IsHitTestVisible="False"
+               Stretch="Fill"
+               Visibility="Collapsed" />
+    </Grid>
+</Window>

@@ -1,0 +1,153 @@
+<UserControl x:Class="PortPilot.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:PortPilot.App.Controls"
+             xmlns:vm="clr-namespace:PortPilot.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+             Width="540"
+             AutomationProperties.Name="Settings">
+
+    <UserControl.Resources>
+        <Style x:Key="Section" TargetType="TextBlock" BasedOn="{StaticResource Text.Label}">
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="RowTitle" TargetType="TextBlock" BasedOn="{StaticResource Text.Body}" />
+        <Style x:Key="RowCaption" TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextTrimming" Value="None" />
+        </Style>
+        <Style x:Key="SettingSwitch" TargetType="CheckBox" BasedOn="{StaticResource Switch}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,14,0,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Border CornerRadius="16" Background="{DynamicResource Bg.Elevated}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="48" Direction="270" Opacity="{DynamicResource ShadowOpacity}" ShadowDepth="14" Color="{DynamicResource ShadowColor}" />
+            </Border.Effect>
+        </Border>
+        <Border CornerRadius="16" Style="{StaticResource Card}">
+            <Grid DataContext="{Binding Settings}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="28,22,18,6">
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Heading}" Text="Settings" />
+                    <Button HorizontalAlignment="Right"
+                            AutomationProperties.Name="Close settings"
+                            Command="{Binding DataContext.ToggleSettingsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            Style="{StaticResource Button.Icon}"
+                            ToolTip="Close  ·  Esc"
+                            ui:Ui.Icon="{StaticResource Icon.Close}" />
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" MaxHeight="520" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="28,12,28,8">
+
+                        <!-- Appearance -->
+                        <TextBlock Style="{StaticResource Section}" Text="Appearance" />
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Theme" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Follow Windows or keep a fixed look." />
+                            </StackPanel>
+                            <Border Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{StaticResource Segmented.Track}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Content="System" GroupName="Theme" IsChecked="{Binding Theme, Converter={StaticResource Equals}, ConverterParameter=System}" Style="{StaticResource Segment}" ui:Ui.Icon="{StaticResource Icon.Monitor}" />
+                                    <RadioButton Content="Light" GroupName="Theme" IsChecked="{Binding Theme, Converter={StaticResource Equals}, ConverterParameter=Light}" Style="{StaticResource Segment}" ui:Ui.Icon="{StaticResource Icon.Sun}" />
+                                    <RadioButton Content="Dark" GroupName="Theme" IsChecked="{Binding Theme, Converter={StaticResource Equals}, ConverterParameter=Dark}" Style="{StaticResource Segment}" ui:Ui.Icon="{StaticResource Icon.Moon}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Margin="0,22,0,20" Style="{StaticResource Divider}" />
+
+                        <!-- Monitoring -->
+                        <TextBlock Style="{StaticResource Section}" Text="Monitoring" />
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Refresh interval" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="How often the port table is rescanned." />
+                            </StackPanel>
+                            <Border Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Style="{StaticResource Segmented.Track}">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton Content="1s" GroupName="Interval" IsChecked="{Binding RefreshIntervalSeconds, Converter={StaticResource Equals}, ConverterParameter=1}" Style="{StaticResource Segment}" />
+                                    <RadioButton Content="2s" GroupName="Interval" IsChecked="{Binding RefreshIntervalSeconds, Converter={StaticResource Equals}, ConverterParameter=2}" Style="{StaticResource Segment}" />
+                                    <RadioButton Content="5s" GroupName="Interval" IsChecked="{Binding RefreshIntervalSeconds, Converter={StaticResource Equals}, ConverterParameter=5}" Style="{StaticResource Segment}" />
+                                    <RadioButton Content="10s" GroupName="Interval" IsChecked="{Binding RefreshIntervalSeconds, Converter={StaticResource Equals}, ConverterParameter=10}" Style="{StaticResource Segment}" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                        <CheckBox IsChecked="{Binding NotifyOnNewDevPorts}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Notify when a dev server starts" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="A Windows notification when a port like 3000 or 5173 opens while PortPilot is in the tray." />
+                            </StackPanel>
+                        </CheckBox>
+
+                        <Border Margin="0,22,0,20" Style="{StaticResource Divider}" />
+
+                        <!-- Window -->
+                        <TextBlock Style="{StaticResource Section}" Text="Startup and tray" />
+                        <CheckBox Margin="0,10,0,0" IsChecked="{Binding StartWithWindows}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Start with Windows" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Launch quietly into the notification area when you sign in." />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding StartMinimized}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Start in the tray" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Don't open the window when PortPilot starts." />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding CloseToTray}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Keep running when closed" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Closing the window leaves PortPilot in the notification area. Quit from the tray menu or with Ctrl+Q." />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding MinimizeToTray}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Minimize to tray" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Minimizing hides the window instead of keeping it on the taskbar." />
+                            </StackPanel>
+                        </CheckBox>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Footer -->
+                <Border Grid.Row="2" Margin="0,14,0,0" Padding="28,14,28,16" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="0,1,0,0">
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Primary}" Text="PortPilot" />
+                            <TextBlock Margin="8,0,0,0" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Tertiary}" Text="{x:Static vm:SettingsViewModel.VersionText}" />
+                        </StackPanel>
+                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                            <Button Command="{Binding OpenLogsCommand}" Content="Open logs" Style="{StaticResource Button.Link}" />
+                            <Button Margin="16,0,0,0" Command="{Binding OpenSettingsFileCommand}" Content="Settings file" Style="{StaticResource Button.Link}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,105 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+    <!-- ───────────── Type families ───────────── -->
+    <FontFamily x:Key="Font.UI">Segoe UI Variable Text, Segoe UI</FontFamily>
+    <FontFamily x:Key="Font.Display">Segoe UI Variable Display, Segoe UI</FontFamily>
+    <FontFamily x:Key="Font.Small">Segoe UI Variable Small, Segoe UI</FontFamily>
+    <FontFamily x:Key="Font.Mono">Cascadia Mono, Cascadia Code, Consolas</FontFamily>
+    <FontFamily x:Key="Font.Glyph">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <!-- ───────────── Type scale ─────────────
+         11 micro · 12 caption · 13 body · 15 title · 20 heading · 24 display -->
+    <sys:Double x:Key="Type.Micro">11</sys:Double>
+    <sys:Double x:Key="Type.Caption">12</sys:Double>
+    <sys:Double x:Key="Type.Body">13</sys:Double>
+    <sys:Double x:Key="Type.Title">15</sys:Double>
+    <sys:Double x:Key="Type.Heading">20</sys:Double>
+    <sys:Double x:Key="Type.Display">24</sys:Double>
+
+    <!-- ───────────── Motion ─────────────
+         Fast and quiet: 100–240ms, decelerating curves. -->
+    <CubicEase x:Key="Ease.Out" EasingMode="EaseOut" po:Freeze="True" />
+    <QuinticEase x:Key="Ease.OutStrong" EasingMode="EaseOut" po:Freeze="True" />
+    <CubicEase x:Key="Ease.InOut" EasingMode="EaseInOut" po:Freeze="True" />
+
+    <Storyboard x:Key="Sb.HoverIn">
+        <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.09" />
+    </Storyboard>
+    <Storyboard x:Key="Sb.HoverOut">
+        <DoubleAnimation Storyboard.TargetName="Hover" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.22" EasingFunction="{StaticResource Ease.Out}" />
+    </Storyboard>
+    <Storyboard x:Key="Sb.PressIn">
+        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="RenderTransform.ScaleX" To="0.97" Duration="0:0:0.08" EasingFunction="{StaticResource Ease.Out}" />
+        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="RenderTransform.ScaleY" To="0.97" Duration="0:0:0.08" EasingFunction="{StaticResource Ease.Out}" />
+    </Storyboard>
+    <Storyboard x:Key="Sb.PressOut">
+        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="RenderTransform.ScaleX" To="1" Duration="0:0:0.16" EasingFunction="{StaticResource Ease.Out}" />
+        <DoubleAnimation Storyboard.TargetName="Root" Storyboard.TargetProperty="RenderTransform.ScaleY" To="1" Duration="0:0:0.16" EasingFunction="{StaticResource Ease.Out}" />
+    </Storyboard>
+
+    <!-- ───────────── Text styles ───────────── -->
+    <Style x:Key="Text.Base" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource Font.UI}" />
+        <Setter Property="FontSize" Value="{StaticResource Type.Body}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+    </Style>
+
+    <Style x:Key="Text.Display" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+        <Setter Property="FontSize" Value="{StaticResource Type.Display}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="Text.Heading" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontFamily" Value="{StaticResource Font.Display}" />
+        <Setter Property="FontSize" Value="{StaticResource Type.Heading}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="Text.Title" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontSize" Value="{StaticResource Type.Title}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="Text.Body" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}" />
+
+    <Style x:Key="Text.BodyStrong" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="Text.Muted" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style x:Key="Text.Caption" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontSize" Value="{StaticResource Type.Caption}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+    <Style x:Key="Text.Micro" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontFamily" Value="{StaticResource Font.Small}" />
+        <Setter Property="FontSize" Value="{StaticResource Type.Micro}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+
+    <Style x:Key="Text.Label" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontSize" Value="{StaticResource Type.Caption}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+
+    <Style x:Key="Text.Mono" TargetType="TextBlock" BasedOn="{StaticResource Text.Base}">
+        <Setter Property="FontFamily" Value="{StaticResource Font.Mono}" />
+    </Style>
+
+    <Style x:Key="Text.MonoSmall" TargetType="TextBlock" BasedOn="{StaticResource Text.Mono}">
+        <Setter Property="FontSize" Value="{StaticResource Type.Caption}" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+
+</ResourceDictionary>

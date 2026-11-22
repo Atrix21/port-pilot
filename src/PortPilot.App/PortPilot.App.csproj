@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>PortPilot</AssemblyName>
+    <RootNamespace>PortPilot.App</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\PortPilot.ico</ApplicationIcon>
+    <AssemblyTitle>PortPilot</AssemblyTitle>
+    <Description>Live localhost port and process monitor for developers.</Description>
+    <NoWarn>$(NoWarn);CA1515;CA1001;CA1812;CA2007;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\PortPilot.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortPilot.Core\PortPilot.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,77 @@
+<UserControl x:Class="PortPilot.App.Views.ShortcutsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="clr-namespace:PortPilot.App.Controls"
+             xmlns:views="clr-namespace:PortPilot.App.Views"
+             Width="620"
+             AutomationProperties.Name="Keyboard shortcuts">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="GroupTemplate" DataType="{x:Type views:ShortcutGroup}">
+            <StackPanel Margin="0,0,0,18">
+                <TextBlock Margin="0,0,0,6" Style="{StaticResource Text.Label}" Text="{Binding Title}" />
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type views:Shortcut}">
+                            <Grid Height="30">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Body}" Text="{Binding Description}" />
+                                <ItemsControl Grid.Column="1" VerticalAlignment="Center" ItemsSource="{Binding Keys}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="4,0,0,0" Style="{StaticResource Keycap}">
+                                                <TextBlock Style="{StaticResource Keycap.Text}" Text="{Binding}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Border CornerRadius="16" Background="{DynamicResource Bg.Elevated}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="48" Direction="270" Opacity="{DynamicResource ShadowOpacity}" ShadowDepth="14" Color="{DynamicResource ShadowColor}" />
+            </Border.Effect>
+        </Border>
+        <Border CornerRadius="16" Style="{StaticResource Card}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid Margin="28,22,18,0">
+                    <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Heading}" Text="Keyboard shortcuts" />
+                    <Button HorizontalAlignment="Right"
+                            AutomationProperties.Name="Close shortcuts"
+                            Command="{Binding ToggleShortcutsCommand}"
+                            Style="{StaticResource Button.Icon}"
+                            ToolTip="Close  ·  Esc"
+                            ui:Ui.Icon="{StaticResource Icon.Close}" />
+                </Grid>
+                <Grid Grid.Row="1" Margin="28,18,28,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="36" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ItemsControl x:Name="LeftColumn" Focusable="False" ItemTemplate="{StaticResource GroupTemplate}" />
+                    <ItemsControl x:Name="RightColumn" Grid.Column="2" Focusable="False" ItemTemplate="{StaticResource GroupTemplate}" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
