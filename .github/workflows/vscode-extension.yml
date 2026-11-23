@@ -115,9 +115,20 @@ jobs:
       - name: Publish to the VS Code Marketplace (Trusted Publishing)
         run: npx --yes @vscode/vsce@^4.1.1 publish --oidc $PRE_RELEASE --packagePath vsix/*.vsix
 
-      - name: Publish to Open VSX (Cursor, Windsurf, VSCodium, Gitpod)
-        if: env.OVSX_PAT != ''
+      # Open VSX: trusted publishing once the namespace has an owner who registered this workflow
+      # (set repository variable OPENVSX_TRUSTED_PUBLISHING=true), otherwise the OVSX_PAT token.
+      - name: Publish to Open VSX (Cursor, Windsurf, VSCodium)
+        if: env.OVSX_PAT != '' || vars.OPENVSX_TRUSTED_PUBLISHING == 'true'
+        env:
+          TRUSTED: ${{ vars.OPENVSX_TRUSTED_PUBLISHING == 'true' }}
         run: |
-          # Creating the namespace is a one-time step; it fails harmlessly once it exists.
-          npx --yes ovsx create-namespace "$(node -p "require('./extensions/vscode/package.json').publisher")" -p "$OVSX_PAT" || true
-          for f in vsix/*.vsix; do npx --yes ovsx publish "$f" $PRE_RELEASE -p "$OVSX_PAT"; done
+          namespace=$(node -p "require('./extensions/vscode/package.json').publisher")
+          if [ "$TRUSTED" = "true" ]; then
+            auth="--trusted-publishing"
+            unset OVSX_PAT
+          else
+            # Creating the namespace is a one-time step; it fails harmlessly once it exists.
+            npx --yes ovsx@^1.4.0 create-namespace "$namespace" || true
+            auth=""
+          fi
+          for f in vsix/*.vsix; do npx --yes ovsx@^1.4.0 publish "$f" $PRE_RELEASE $auth; done

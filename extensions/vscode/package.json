@@ -1,6 +1,6 @@
 {
-  "name": "portpilot",
-  "displayName": "PortPilot",
+  "name": "portpilot-dev",
+  "displayName": "PortPilot: Ports, Projects & Agents",
   "description": "What's listening on your ports, which project and coding agent it belongs to, whether it's healthy, and what was left behind. Plus an MCP server so agents can ask.",
   "version": "1.0.0",
   "publisher": "Atrix21",

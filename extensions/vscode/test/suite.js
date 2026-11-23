@@ -8,7 +8,7 @@ exports.run = async function run() {
   const folder = vscode.workspace.workspaceFolders[0].uri.fsPath;
   const server = spawn("python3", ["-m", "http.server", "5179", "--bind", "127.0.0.1"], { cwd: folder, stdio: "ignore" });
   try {
-    const extension = vscode.extensions.getExtension("atrix21.portpilot");
+    const extension = vscode.extensions.getExtension("Atrix21.portpilot-dev");
     const api = await extension.activate();
     assert.ok(api.cliPath(), "the CLI is resolved");
 

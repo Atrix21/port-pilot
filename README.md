@@ -121,7 +121,7 @@ The engine uses `libproc`, the same API as `lsof` and Activity Monitor, so it ne
 
 | Editor | Install |
 | --- | --- |
-| **VS Code, Cursor, Windsurf, VSCodium** | `portpilot-<platform>.vsix` from the release (*Extensions → … → Install from VSIX*), or search *PortPilot* in the Marketplace or Open VSX |
+| **VS Code, Cursor, Windsurf, VSCodium** | `portpilot-<platform>.vsix` from the release (*Extensions → … → Install from VSIX*), or search *PortPilot* in the Marketplace or Open VSX (ID `Atrix21.portpilot-dev`) |
 | **IntelliJ IDEA, WebStorm, PyCharm, GoLand, Rider, …** | `portpilot-jetbrains-x.y.z.zip` from the release (*Settings → Plugins → ⚙ → Install Plugin from Disk*) |
 
 Both are thin layers over the same engine:
