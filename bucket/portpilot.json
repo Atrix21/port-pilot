@@ -1,30 +1,30 @@
 {
-    "version": "1.0.0",
-    "description": "See every listening port on Windows, which process owns it, and end it.",
-    "homepage": "https://github.com/Atrix21/port-pilot",
-    "license": "MIT",
-    "architecture": {
-        "64bit": {
-            "url": "https://github.com/Atrix21/port-pilot/releases/download/v1.0.0/PortPilot-1.0.0-portable.exe#/PortPilot.exe",
-            "hash": "a86c9bdf4a1a8a3e8c591138fa782f8f70e35621c7db3cf5aa728359ddcdf6dc"
-        }
-    },
-    "bin": "PortPilot.exe",
-    "shortcuts": [
-        [
-            "PortPilot.exe",
-            "PortPilot"
-        ]
-    ],
-    "checkver": "github",
-    "autoupdate": {
-        "architecture": {
-            "64bit": {
-                "url": "https://github.com/Atrix21/port-pilot/releases/download/v$version/PortPilot-$version-portable.exe#/PortPilot.exe"
-            }
-        },
-        "hash": {
-            "url": "$baseurl/SHA256SUMS.txt"
-        }
+  "version": "1.2.0",
+  "description": "See every listening port on Windows, which process owns it, and end it.",
+  "homepage": "https://github.com/Atrix21/port-pilot",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/Atrix21/port-pilot/releases/download/v1.2.0/PortPilot-1.2.0-portable.exe#/PortPilot.exe",
+      "hash": "47a80e1729d1cbc4aa0815996892ca5ee54016eaab9a5cef77696c6e8a9f640d"
     }
+  },
+  "bin": "PortPilot.exe",
+  "shortcuts": [
+    [
+      "PortPilot.exe",
+      "PortPilot"
+    ]
+  ],
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/Atrix21/port-pilot/releases/download/v$version/PortPilot-$version-portable.exe#/PortPilot.exe"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/SHA256SUMS.txt"
+    }
+  }
 }
