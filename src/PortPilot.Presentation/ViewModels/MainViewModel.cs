@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
-using System.Windows.Data;
 using System.Windows.Input;
 using Microsoft.Extensions.Logging;
 using PortPilot.App.Mvvm;
@@ -42,7 +41,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private readonly PortChangeTracker _tracker;
     private readonly Dictionary<string, PortRowViewModel> _rowsByKey = [];
-    private readonly ListCollectionView _rowsView;
+    private readonly RowsView _rowsView;
 
     private AppSettings _settings;
     private PortFilter _filter;
@@ -103,11 +102,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _scopeIncludesAllStates = !settings.ListeningOnly;
         _monitor.IncludeAllTcpStates = _scopeIncludesAllStates;
 
-        _rowsView = new ListCollectionView(Rows)
-        {
-            Filter = item => item is PortRowViewModel row && _filter.Matches(row.Entry),
-            CustomSort = new RowComparer(settings.SortColumn, settings.SortDescending),
-        };
+        _rowsView = new RowsView(Rows, row => _filter.Matches(row.Entry), new RowComparer(settings.SortColumn, settings.SortDescending));
 
         Inspector = new InspectorViewModel(terminator);
         Settings = new SettingsViewModel(() => _settings, UpdateSettings, startup, shell, logDirectory, settingsPath);
@@ -160,7 +155,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PortRowViewModel> Rows { get; } = [];
 
-    public ICollectionView RowsView => _rowsView;
+    /// <summary>The rows that pass the current filter, in display order.</summary>
+    public RowsView RowsView => _rowsView;
 
     public ObservableCollection<ToastViewModel> Toasts { get; } = [];
 
@@ -636,6 +632,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         UpdateCounts();
         Inspector.Refresh(Rows, DateTimeOffset.Now);
         NotifyAboutNewDevPorts(newlyOpened);
+        CommandRequery.Invalidate();
     }
 
     /// <summary>
@@ -649,7 +646,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private void UpdateRow(PortRowViewModel row, PortEntry entry)
     {
-        var comparer = (RowComparer)_rowsView.CustomSort;
+        var comparer = _rowsView.Comparer;
         var oldSortKey = (row.ProcessName, row.State);
         if (!row.Update(entry))
         {
@@ -753,7 +750,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         var descending = _settings.SortColumn == column && !_settings.SortDescending;
         UpdateSettings(s => s with { SortColumn = column, SortDescending = descending });
-        _rowsView.CustomSort = new RowComparer(column, descending);
+        _rowsView.Comparer = new RowComparer(column, descending);
         OnPropertiesChanged(nameof(SortColumn), nameof(SortDescending));
     }
 
@@ -829,7 +826,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         if (row.ExecutablePath is { } path && !_shell.RevealInExplorer(path))
         {
-            ShowToast("Couldn't open File Explorer", ToastKind.Error);
+            ShowToast($"Couldn't open {PlatformText.FileManager}", ToastKind.Error);
         }
     }
 
@@ -844,7 +841,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         SaveSettingsNow();
         if (!_elevation.TryRestartElevated())
         {
-            ShowToast("Administrator restart was cancelled", ToastKind.Info);
+            ShowToast($"{PlatformText.AdminTitle} restart was cancelled", ToastKind.Info);
         }
     }
 
@@ -864,7 +861,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             Message = $"{ports} Any unsaved work in this process will be lost.".Trim(),
             Detail = $"{row.ImageName} · PID {row.PidText}",
             Note = row.IsRestricted || Inspector.Row == row && Inspector.RequiresElevation
-                ? "Windows may require administrator privileges for this process."
+                ? $"{PlatformText.Os} may require {PlatformText.AdminPrivileges} for this process."
                 : null,
             ConfirmText = "Terminate",
             IsDestructive = true,
@@ -893,11 +890,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
                 ShowToast("PID now belongs to another process – nothing was terminated", ToastKind.Warning);
                 break;
             case TerminationOutcome.AccessDenied:
-                ShowToast(IsElevated ? "Windows denied access to this process" : "Administrator privileges required", ToastKind.Error,
-                    IsElevated ? null : "Restart PortPilot as administrator to manage this process.");
+                ShowToast(IsElevated ? $"{PlatformText.Os} denied access to this process" : $"{PlatformText.AdminTitle} privileges required", ToastKind.Error,
+                    IsElevated ? null : $"Restart PortPilot as {PlatformText.Admin} to manage this process.");
                 break;
             case TerminationOutcome.Protected:
-                ShowToast("Windows protects this process", ToastKind.Warning, result.Detail);
+                ShowToast($"{PlatformText.Os} protects this process", ToastKind.Warning, result.Detail);
                 break;
             case TerminationOutcome.TimedOut:
                 ShowToast($"{row.ProcessName} is still shutting down", ToastKind.Info);

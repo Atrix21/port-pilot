@@ -4,7 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:PortPilot.App.Controls"
-             xmlns:vm="clr-namespace:PortPilot.App.ViewModels"
+             xmlns:vm="clr-namespace:PortPilot.App.ViewModels;assembly=PortPilot.Presentation"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
              Width="540"

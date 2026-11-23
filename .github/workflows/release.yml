@@ -58,6 +58,48 @@ jobs:
           $notesArgs = if (Test-Path $notes) { @('--notes-file', $notes) } else { @('--generate-notes') }
           gh release create '${{ github.ref_name }}' dist/* --title "PortPilot $env:VERSION" @notesArgs
 
+  # Native Linux builds of the desktop and terminal apps, attached to the release created above.
+  linux:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test and publish
+        run: |
+          version='${{ github.ref_name }}'
+          version="${version#v}"
+          dotnet test tests/PortPilot.Core.Tests -c Release
+          name="portpilot-$version-${{ matrix.rid }}"
+          dotnet publish src/PortPilot.Cli -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
+          dotnet publish src/PortPilot.Linux -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
+          cp packaging/linux/install.sh packaging/linux/portpilot.desktop "out/$name/"
+          cp docs/PortPilot-512.png "out/$name/portpilot.png"
+          mkdir dist
+          tar -C out -czf "dist/$name.tar.gz" "$name"
+          (cd dist && sha256sum *.tar.gz > "SHA256SUMS-${{ matrix.rid }}.txt")
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*.tar.gz
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ github.ref_name }}' dist/*
+
   # Point the Scoop bucket at the new release, then prove it installs.
   scoop-manifest:
     needs: release

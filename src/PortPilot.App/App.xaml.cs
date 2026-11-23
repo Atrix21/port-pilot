@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
 using PortPilot.App.Controls;
 using PortPilot.App.Diagnostics;
+using PortPilot.App.Mvvm;
 using PortPilot.App.Native;
 using PortPilot.App.Services;
 using PortPilot.App.ViewModels;
@@ -42,6 +43,10 @@ public partial class App : Application, IAppShell
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        CommandRequery.Bridge = (
+            h => System.Windows.Input.CommandManager.RequerySuggested += h,
+            h => System.Windows.Input.CommandManager.RequerySuggested -= h,
+            System.Windows.Input.CommandManager.InvalidateRequerySuggested);
         Options = StartupOptions.Parse(e.Args);
 
         if (!Options.IsScreenshotRun && !AcquireSingleInstance())

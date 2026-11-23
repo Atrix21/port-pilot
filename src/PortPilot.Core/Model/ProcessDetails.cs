@@ -5,7 +5,7 @@ public enum ProcessAccessLevel
     /// <summary>Executable path and start time could be read.</summary>
     Full,
 
-    /// <summary>The process is visible but Windows refused to open it (usually needs elevation).</summary>
+    /// <summary>The process is visible but the OS refused to open it (usually needs elevation or root).</summary>
     Restricted,
 
     /// <summary>A kernel-owned pseudo process (System, System Idle Process).</summary>
@@ -42,10 +42,21 @@ public sealed record ProcessDetails
 
     public bool IsSystem => Access == ProcessAccessLevel.System;
 
-    public static ProcessDetails Unknown(int pid) => new()
-    {
-        ProcessId = pid,
-        ImageName = pid switch { 0 => "System Idle Process", 4 => "System", _ => $"PID {pid}" },
-        Access = pid is 0 or 4 ? ProcessAccessLevel.System : ProcessAccessLevel.Exited,
-    };
+    /// <summary>
+    /// A placeholder for a process that could not be inspected. On Windows PIDs 0 and 4 are kernel pseudo
+    /// processes; on Linux PID 0 means the socket's owner could not be determined (it belongs to another user).
+    /// </summary>
+    public static ProcessDetails Unknown(int pid) => OperatingSystem.IsWindows()
+        ? new()
+        {
+            ProcessId = pid,
+            ImageName = pid switch { 0 => "System Idle Process", 4 => "System", _ => $"PID {pid}" },
+            Access = pid is 0 or 4 ? ProcessAccessLevel.System : ProcessAccessLevel.Exited,
+        }
+        : new()
+        {
+            ProcessId = pid,
+            ImageName = pid == 0 ? "Unknown owner" : $"PID {pid}",
+            Access = pid == 0 ? ProcessAccessLevel.Restricted : ProcessAccessLevel.Exited,
+        };
 }

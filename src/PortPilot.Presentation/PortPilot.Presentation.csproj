@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- View models, MVVM plumbing and service contracts shared by the Windows (WPF) and Linux (Avalonia) apps. No UI framework references. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PortPilot.App</RootNamespace>
+    <IsTrimmable>true</IsTrimmable>
+    <NoWarn>$(NoWarn);CA1515;CA1001;CA1812;CA2007;CA1031</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortPilot.Core\PortPilot.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PortPilot" />
+    <InternalsVisibleTo Include="portpilot-desktop" />
+    <InternalsVisibleTo Include="PortPilot.Core.Tests" />
+  </ItemGroup>
+
+</Project>

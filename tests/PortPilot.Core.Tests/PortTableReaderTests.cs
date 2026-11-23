@@ -7,6 +7,7 @@ using PortPilot.Core.Processes;
 namespace PortPilot.Core.Tests;
 
 [TestClass]
+[OSCondition(OperatingSystems.Windows)]
 public sealed class PortTableReaderTests
 {
     private readonly IpHelperPortTableReader _reader = new();

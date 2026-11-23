@@ -1,0 +1,403 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:PortPilot.Linux.Controls"
+        xmlns:v="using:PortPilot.Linux.Views"
+        xmlns:vm="using:PortPilot.App.ViewModels"
+        x:Class="PortPilot.Linux.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="PortPilot"
+        Icon="avares://portpilot-desktop/Assets/PortPilot.png"
+        Width="1280"
+        Height="800"
+        MinWidth="920"
+        MinHeight="540"
+        Background="{DynamicResource Bg.Window}"
+        FontFamily="{StaticResource Font.UI}"
+        FontSize="{StaticResource Type.Body}"
+        Foreground="{DynamicResource Text.Primary}"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="F5" Command="{Binding RefreshCommand}" />
+        <KeyBinding Gesture="Ctrl+R" Command="{Binding RefreshCommand}" />
+        <KeyBinding Gesture="Ctrl+P" Command="{Binding TogglePauseCommand}" />
+        <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding ToggleSettingsCommand}" />
+        <KeyBinding Gesture="Ctrl+OemQuestion" Command="{Binding ToggleShortcutsCommand}" />
+        <KeyBinding Gesture="F1" Command="{Binding ToggleShortcutsCommand}" />
+        <KeyBinding Gesture="Ctrl+T" Command="{Binding ToggleThemeCommand}" />
+        <KeyBinding Gesture="Ctrl+L" Command="{Binding ToggleListeningOnlyCommand}" />
+        <KeyBinding Gesture="Ctrl+D" Command="{Binding ToggleDevPortsOnlyCommand}" />
+        <KeyBinding Gesture="Ctrl+D1" Command="{Binding SetProtocolCommand}" CommandParameter="All" />
+        <KeyBinding Gesture="Ctrl+D2" Command="{Binding SetProtocolCommand}" CommandParameter="Tcp" />
+        <KeyBinding Gesture="Ctrl+D3" Command="{Binding SetProtocolCommand}" CommandParameter="Udp" />
+        <KeyBinding Gesture="Ctrl+Enter" Command="{Binding OpenInBrowserCommand}" CommandParameter="{Binding SelectedRow}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenInBrowserCommand}" CommandParameter="{Binding SelectedRow}" />
+        <KeyBinding Gesture="Ctrl+Shift+C" Command="{Binding CopyUrlCommand}" CommandParameter="{Binding SelectedRow}" />
+        <KeyBinding Gesture="Ctrl+E" Command="{Binding RevealCommand}" CommandParameter="{Binding SelectedRow}" />
+        <KeyBinding Gesture="Delete" Command="{Binding TerminateCommand}" CommandParameter="{Binding SelectedRow}" />
+        <KeyBinding Gesture="Ctrl+Q" Command="{Binding QuitCommand}" />
+    </Window.KeyBindings>
+
+    <Panel>
+        <Grid RowDefinitions="52,Auto,Auto,*,32">
+
+            <!-- ═════════════ Top bar ═════════════ -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0,14,0">
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="10">
+                    <!-- Brand mark: the app icon, drawn as vectors -->
+                    <Panel Width="20" Height="20">
+                        <Border CornerRadius="5">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="50%,0%" EndPoint="50%,100%">
+                                    <GradientStop Offset="0" Color="#34333A" />
+                                    <GradientStop Offset="1" Color="#17171A" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                        </Border>
+                        <Path Data="M14.92,9.13 A5.0,5.0 0 1 1 10.87,5.08" StrokeLineCap="Round" StrokeThickness="1.7">
+                            <Path.Stroke>
+                                <LinearGradientBrush StartPoint="20%,0%" EndPoint="80%,100%">
+                                    <GradientStop Offset="0" Color="#F4B876" />
+                                    <GradientStop Offset="1" Color="#E0934A" />
+                                </LinearGradientBrush>
+                            </Path.Stroke>
+                        </Path>
+                        <Ellipse Width="3.2" Height="3.2" Fill="#EBA45E" />
+                        <Ellipse Width="2.4" Height="2.4" Margin="0,4.3,4.3,0" HorizontalAlignment="Right" VerticalAlignment="Top" Fill="#F7E6D2" />
+                    </Panel>
+                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Classes="body" Text="PortPilot" />
+                </StackPanel>
+
+                <!-- Live indicator -->
+                <Button Name="LiveButton" Grid.Column="2" Margin="0,0,10,0" VerticalAlignment="Center" Classes="pp" Padding="11,0,12,0" Height="26" CornerRadius="13"
+                        Background="{DynamicResource Fill.Subtle}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1"
+                        Command="{Binding TogglePauseCommand}" ToolTip.Tip="Pause or resume live updates  ·  Ctrl+P">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Panel Width="8" Height="8" VerticalAlignment="Center">
+                            <Ellipse Name="LiveRipple" Classes="ripple" Fill="{DynamicResource Positive}" IsVisible="{Binding IsLive}">
+                                <Ellipse.RenderTransform>
+                                    <ScaleTransform />
+                                </Ellipse.RenderTransform>
+                            </Ellipse>
+                            <Ellipse Name="LiveDot" Classes="live-dot" Classes.paused="{Binding IsPaused}" />
+                        </Panel>
+                        <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Classes="caption" Foreground="{DynamicResource Text.Primary}" Text="{Binding LiveText}" />
+                        <TextBlock VerticalAlignment="Center" Margin="-3,0,0,0" Classes="caption" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding IntervalText}" />
+                    </StackPanel>
+                </Button>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+                    <Button Classes="icon" VerticalAlignment="Center" Command="{Binding ToggleThemeCommand}" ToolTip.Tip="Switch appearance  ·  Ctrl+T">
+                        <Panel>
+                            <c:Icon Data="{StaticResource Icon.Sun}" IsVisible="{Binding IsDarkTheme}" Size="17" />
+                            <c:Icon Data="{StaticResource Icon.Moon}" IsVisible="{Binding !IsDarkTheme}" Size="17" />
+                        </Panel>
+                    </Button>
+                    <Button Classes="icon" VerticalAlignment="Center" Command="{Binding ToggleSettingsCommand}" ToolTip.Tip="Settings  ·  Ctrl+,">
+                        <c:Icon Data="{StaticResource Icon.Sliders}" Size="17" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- ═════════════ Header ═════════════ -->
+            <Grid Grid.Row="1" Margin="28,6,28,0" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Classes="display" Text="Listening ports" />
+                    <TextBlock Margin="0,3,0,0" Classes="caption" Text="{Binding HeaderSubtitle}" />
+                </StackPanel>
+
+                <Border Name="SearchBox" Grid.Column="1" Width="360" Margin="24,0,0,0" VerticalAlignment="Center" Classes="search">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <c:Icon Margin="12,0,9,0" VerticalAlignment="Center" Data="{StaticResource Icon.Search}" Foreground="{DynamicResource Text.Tertiary}" Size="16" />
+                        <TextBlock Grid.Column="1" Margin="1,0,0,1" VerticalAlignment="Center" IsHitTestVisible="False" Classes="body"
+                                   Foreground="{DynamicResource Text.Tertiary}" Text="Search process, PID or port" IsVisible="{Binding !HasSearchText}" />
+                        <TextBox Name="SearchInput" Grid.Column="1" VerticalAlignment="Center" Classes="bare" Text="{Binding SearchText}" />
+                        <Button Grid.Column="2" Margin="0,0,6,0" VerticalAlignment="Center" Classes="icon-small" Focusable="False"
+                                Command="{Binding ClearSearchCommand}" ToolTip.Tip="Clear  ·  Esc" IsVisible="{Binding HasSearchText}">
+                            <c:Icon Data="{StaticResource Icon.Close}" Size="14" />
+                        </Button>
+                        <StackPanel Grid.Column="2" Margin="0,0,10,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="3" IsVisible="{Binding !HasSearchText}">
+                            <Border Classes="keycap"><TextBlock Text="Ctrl" /></Border>
+                            <Border Classes="keycap"><TextBlock Text="F" /></Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ═════════════ Filters ═════════════ -->
+            <Grid Grid.Row="2" Margin="28,18,28,14" ColumnDefinitions="Auto,Auto,*,Auto">
+                <Border Classes="segmented">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Classes="segment" Content="All" GroupName="Protocol" ToolTip.Tip="All protocols  ·  Ctrl+1"
+                                     IsChecked="{Binding Protocol, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=All}" />
+                        <RadioButton Classes="segment" Content="TCP" GroupName="Protocol" ToolTip.Tip="TCP only  ·  Ctrl+2"
+                                     IsChecked="{Binding Protocol, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Tcp}" />
+                        <RadioButton Classes="segment" Content="UDP" GroupName="Protocol" ToolTip.Tip="UDP only  ·  Ctrl+3"
+                                     IsChecked="{Binding Protocol, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Udp}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" Orientation="Horizontal" Spacing="8">
+                    <ToggleButton Classes="chip" IsChecked="{Binding ListeningOnly}" ToolTip.Tip="Hide outgoing and closing connections  ·  Ctrl+L">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <c:Icon Data="{StaticResource Icon.Radar}" Size="15" VerticalAlignment="Center" />
+                            <TextBlock Text="Listening only" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <ToggleButton Classes="chip" IsChecked="{Binding DevPortsOnly}" ToolTip.Tip="Only common development ports such as 3000, 5173 and 5432  ·  Ctrl+D">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <c:Icon Data="{StaticResource Icon.Sparkle}" Size="15" VerticalAlignment="Center" />
+                            <TextBlock Text="Dev ports" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal" Spacing="14">
+                    <TextBlock VerticalAlignment="Center" Classes="caption" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding CountText}" IsVisible="{Binding IsFiltered}" />
+                    <Button Name="RefreshButton" Classes="secondary" Height="30" Padding="10,0,12,0" Command="{Binding RefreshCommand}" ToolTip.Tip="Scan now  ·  F5">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <c:Icon Name="RefreshGlyph" Data="{StaticResource Icon.Refresh}" Size="15" VerticalAlignment="Center" RenderTransform="rotate(0deg)">
+                                <c:Icon.Transitions>
+                                    <Transitions>
+                                        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.6" Easing="QuinticEaseOut" />
+                                    </Transitions>
+                                </c:Icon.Transitions>
+                            </c:Icon>
+                            <TextBlock VerticalAlignment="Center" FontSize="{StaticResource Type.Caption}" Text="Refresh" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- ═════════════ Content ═════════════ -->
+            <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+                <Grid RowDefinitions="34,*">
+                    <!-- Column headers -->
+                    <Grid Name="HeaderRow" Margin="44,0,44,0" ColumnDefinitions="110,*,88,116,190,132">
+                        <Button Classes="th" Grid.Column="0" Tag="Port" Command="{Binding SortCommand}" CommandParameter="Port" />
+                        <Button Classes="th" Grid.Column="1" Tag="Process" Command="{Binding SortCommand}" CommandParameter="Process" />
+                        <Button Classes="th" Grid.Column="2" Tag="Pid" Command="{Binding SortCommand}" CommandParameter="Pid" />
+                        <Button Classes="th" Grid.Column="3" Tag="Protocol" Command="{Binding SortCommand}" CommandParameter="Protocol" />
+                        <Button Classes="th" Grid.Column="4" Tag="Address" Command="{Binding SortCommand}" CommandParameter="Address" />
+                        <Button Classes="th" Grid.Column="5" Tag="Status" Command="{Binding SortCommand}" CommandParameter="Status" />
+                    </Grid>
+                    <Border Margin="12,0" VerticalAlignment="Bottom" Classes="divider" />
+
+                    <!-- Rows -->
+                    <ListBox Name="Table" Grid.Row="1" Classes="table" ItemsSource="{Binding RowsView}" SelectedItem="{Binding SelectedRow}" SelectionMode="Single">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PortRowViewModel">
+                                <Grid Classes="row" Classes.closed="{Binding IsClosed}" Classes.removing="{Binding IsRemoving}" Background="Transparent"
+                                      ColumnDefinitions="110,*,88,116,190,132" DoubleTapped="OnRowDoubleTapped">
+                                    <!-- Port -->
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock FontSize="14" Classes="mono" Text="{Binding PortText}" />
+                                        <TextBlock Margin="0,2,0,0" Classes="micro" Text="{Binding KnownName}" IsVisible="{Binding KnownName, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    </StackPanel>
+
+                                    <!-- Process -->
+                                    <Grid Grid.Column="1" Margin="0,0,20,0" VerticalAlignment="Center" ColumnDefinitions="Auto,*">
+                                        <c:ProcessIcon NameText="{Binding ProcessName}" Path="{Binding ExecutablePath}" />
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                            <TextBlock Classes="body" Text="{Binding ProcessName}" />
+                                            <TextBlock Margin="0,2,0,0" Classes="micro mono" Text="{Binding ProcessDetail}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- PID -->
+                                    <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="12.5" Classes="mono" Foreground="{DynamicResource Text.Secondary}" Text="{Binding PidText}" />
+
+                                    <!-- Protocol -->
+                                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                                        <Border Classes="pill" Classes.udp="{Binding !IsTcp}">
+                                            <TextBlock Text="{Binding ProtocolText}" />
+                                        </Border>
+                                        <TextBlock VerticalAlignment="Center" Classes="micro" Text="{Binding FamilyText}" />
+                                    </StackPanel>
+
+                                    <!-- Address -->
+                                    <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center">
+                                        <TextBlock FontSize="12.5" Classes="mono" Text="{Binding AddressText}" />
+                                        <TextBlock Margin="0,2,0,0" Classes="micro" Text="{Binding AddressScope}" />
+                                    </StackPanel>
+
+                                    <!-- Status, swapped for quick actions on hover -->
+                                    <Panel Grid.Column="5">
+                                        <StackPanel Classes="status" VerticalAlignment="Center" Orientation="Horizontal" Spacing="9">
+                                            <Panel Width="7" Height="7" VerticalAlignment="Center">
+                                                <Ellipse Classes="dot ripple" Classes.active="{Binding IsNew}" Classes.new="{Binding IsNew}">
+                                                    <Ellipse.RenderTransform>
+                                                        <ScaleTransform />
+                                                    </Ellipse.RenderTransform>
+                                                </Ellipse>
+                                                <Ellipse Classes="dot"
+                                                         Classes.new="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=New}"
+                                                         Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}"
+                                                         Classes.connected="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Connected}"
+                                                         Classes.transitional="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Transitional}" />
+                                            </Panel>
+                                            <TextBlock VerticalAlignment="Center" Classes="status" Text="{Binding StatusText}"
+                                                       Classes.new="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=New}"
+                                                       Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}" />
+                                        </StackPanel>
+                                        <StackPanel Classes="actions" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="2">
+                                            <Button Classes="icon-small" Click="OnRowOpen" ToolTip.Tip="{Binding UrlDisplay}" IsVisible="{Binding CanOpenInBrowser}">
+                                                <c:Icon Data="{StaticResource Icon.External}" Size="15" />
+                                            </Button>
+                                            <Button Classes="icon-small" Click="OnRowCopy" ToolTip.Tip="Copy details">
+                                                <c:Icon Data="{StaticResource Icon.Copy}" Size="15" />
+                                            </Button>
+                                            <Button Classes="icon-small destructive" Click="OnRowTerminate" ToolTip.Tip="Terminate process" IsVisible="{Binding !IsSystem}">
+                                                <c:Icon Data="{StaticResource Icon.Power}" Size="15" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Panel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- Empty: discovering -->
+                    <StackPanel Name="Skeleton" Grid.Row="1" Margin="44,16,44,0" IsHitTestVisible="False" Classes="reveal"
+                                Classes.shown="{Binding EmptyState, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Discovering}">
+                        <StackPanel Name="SkeletonRows" Spacing="0" />
+                        <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" Classes="caption" Foreground="{DynamicResource Text.Tertiary}" Text="Discovering listening ports…" />
+                    </StackPanel>
+
+                    <!-- Empty: nothing listening -->
+                    <StackPanel Grid.Row="1" MaxWidth="380" Margin="24,0,24,48" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="reveal"
+                                Classes.shown="{Binding EmptyState, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=NoPorts}">
+                        <Panel Width="56" Height="56" HorizontalAlignment="Center">
+                            <Ellipse Fill="{DynamicResource Fill.Subtle}" Stroke="{DynamicResource Stroke.Hairline}" />
+                            <c:Icon HorizontalAlignment="Center" VerticalAlignment="Center" Data="{StaticResource Icon.Radar}" Foreground="{DynamicResource Text.Secondary}" Size="26" />
+                        </Panel>
+                        <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" Classes="title" Text="Nothing is listening" />
+                        <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" Classes="muted wrap" TextAlignment="Center"
+                                   Text="Start a dev server, database or any service and it will appear here within a couple of seconds." />
+                    </StackPanel>
+
+                    <!-- Empty: no results -->
+                    <StackPanel Grid.Row="1" MaxWidth="400" Margin="24,0,24,48" HorizontalAlignment="Center" VerticalAlignment="Center" Classes="reveal"
+                                Classes.shown="{Binding EmptyState, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=NoResults}">
+                        <Panel Width="56" Height="56" HorizontalAlignment="Center">
+                            <Ellipse Fill="{DynamicResource Fill.Subtle}" Stroke="{DynamicResource Stroke.Hairline}" />
+                            <c:Icon HorizontalAlignment="Center" VerticalAlignment="Center" Data="{StaticResource Icon.SearchOff}" Foreground="{DynamicResource Text.Secondary}" Size="26" />
+                        </Panel>
+                        <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" Classes="title" Text="{Binding NoResultsTitle}" />
+                        <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" Classes="muted wrap" TextAlignment="Center" Text="{Binding NoResultsMessage}" />
+                        <Button Margin="0,18,0,0" HorizontalAlignment="Center" Classes="secondary" Command="{Binding ClearFiltersCommand}" Content="Clear search and filters" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Inspector -->
+                <Border Name="InspectorHost" Grid.Column="1" Width="0" ClipToBounds="True"
+                        Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1,1,0,0" CornerRadius="12,0,0,0">
+                    <Border.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Width" Duration="0:0:0.26" Easing="QuinticEaseOut" />
+                        </Transitions>
+                    </Border.Transitions>
+                    <v:InspectorView Width="372" HorizontalAlignment="Left" />
+                </Border>
+            </Grid>
+
+            <!-- ═════════════ Status bar ═════════════ -->
+            <Grid Grid.Row="4">
+                <Border VerticalAlignment="Top" Classes="divider" />
+                <Grid Margin="20,0,12,0" ColumnDefinitions="*,Auto">
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="7">
+                        <c:Icon VerticalAlignment="Center" Data="{StaticResource Icon.Clock}" Foreground="{DynamicResource Text.Tertiary}" Size="13" />
+                        <TextBlock VerticalAlignment="Center" Classes="micro" Text="{Binding StatusText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal" Spacing="14">
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasRestrictedProcesses}">
+                            <c:Icon VerticalAlignment="Center" Data="{StaticResource Icon.Lock}" Foreground="{DynamicResource Caution}" Size="13" />
+                            <TextBlock VerticalAlignment="Center" Classes="micro" Text="Some sockets belong to other users" />
+                            <Button Margin="2,0,0,0" VerticalAlignment="Center" Classes="link" FontSize="{StaticResource Type.Micro}" Command="{Binding RestartAsAdminCommand}" Content="Restart as root" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsElevated}" ToolTip.Tip="PortPilot is running as root">
+                            <c:Icon VerticalAlignment="Center" Data="{StaticResource Icon.Shield}" Foreground="{DynamicResource Accent}" Size="13" />
+                            <TextBlock VerticalAlignment="Center" Classes="micro" Text="Root" />
+                        </StackPanel>
+                        <Button Height="24" Classes="ghost" Command="{Binding ToggleShortcutsCommand}" ToolTip.Tip="Keyboard shortcuts  ·  Ctrl+/">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <c:Icon Data="{StaticResource Icon.Keyboard}" Size="14" VerticalAlignment="Center" />
+                                <TextBlock FontSize="{StaticResource Type.Micro}" Text="Shortcuts" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ═════════════ Toasts ═════════════ -->
+        <ItemsControl Margin="0,0,0,48" HorizontalAlignment="Center" VerticalAlignment="Bottom" Focusable="False" ItemsSource="{Binding Toasts}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ToastViewModel">
+                    <Border Classes="toast" Classes.leaving="{Binding IsLeaving}">
+                        <Grid ColumnDefinitions="Auto,Auto">
+                            <Panel Margin="0,1,10,0" VerticalAlignment="Top">
+                                <c:Icon Data="{StaticResource Icon.Check}" Foreground="#62C391" Size="16" StrokeThickness="1.75"
+                                        IsVisible="{Binding Kind, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Success}" />
+                                <c:Icon Data="{StaticResource Icon.Alert}" Foreground="#F0786C" Size="16" StrokeThickness="1.75"
+                                        IsVisible="{Binding Kind, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Error}" />
+                                <c:Icon Data="{StaticResource Icon.Alert}" Foreground="#E2B657" Size="16" StrokeThickness="1.75"
+                                        IsVisible="{Binding Kind, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Warning}" />
+                                <c:Icon Data="{StaticResource Icon.Info}" Foreground="#B4B4BC" Size="16" StrokeThickness="1.75"
+                                        IsVisible="{Binding Kind, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Info}" />
+                            </Panel>
+                            <StackPanel Grid.Column="1" MaxWidth="420">
+                                <TextBlock FontSize="{StaticResource Type.Body}" Foreground="{DynamicResource Toast.Text}" Text="{Binding Message}" Classes="wrap" />
+                                <TextBlock Margin="0,2,0,0" FontSize="{StaticResource Type.Caption}" Foreground="{DynamicResource Toast.Muted}" Text="{Binding Detail}" Classes="wrap"
+                                           IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- ═════════════ Sheets & dialogs ═════════════ -->
+        <Panel Classes="layer" Classes.open="{Binding IsSettingsOpen}">
+            <Border Background="{DynamicResource Scrim}" PointerPressed="OnSettingsScrimPressed" />
+            <v:SettingsView Classes="sheet" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Panel>
+
+        <Panel Classes="layer" Classes.open="{Binding IsShortcutsOpen}">
+            <Border Background="{DynamicResource Scrim}" PointerPressed="OnShortcutsScrimPressed" />
+            <v:ShortcutsView Classes="sheet" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Panel>
+
+        <Panel Classes="layer" Classes.open="{Binding IsDialogOpen}">
+            <Border Background="{DynamicResource Scrim}" />
+            <Border Classes="card sheet" Width="440" Margin="24" Padding="24,24,24,20" CornerRadius="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Panel Width="40" Height="40" VerticalAlignment="Top">
+                            <Ellipse Fill="{DynamicResource Negative.Soft}" />
+                            <c:Icon HorizontalAlignment="Center" VerticalAlignment="Center" Data="{StaticResource Icon.Power}" Foreground="{DynamicResource Negative}" Size="20" StrokeThickness="1.75" />
+                        </Panel>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock FontSize="16" Classes="title wrap" Text="{Binding Dialog.Title, FallbackValue=''}" />
+                            <TextBlock Margin="0,6,0,0" LineHeight="19" Classes="muted wrap" Text="{Binding Dialog.Message, FallbackValue=''}" />
+                            <Border Margin="0,14,0,0" Padding="10,6" HorizontalAlignment="Left" Background="{DynamicResource Fill.Subtle}"
+                                    BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1" CornerRadius="7"
+                                    IsVisible="{Binding Dialog.Detail, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                                <TextBlock Classes="mono-small" Text="{Binding Dialog.Detail}" />
+                            </Border>
+                            <StackPanel Margin="0,12,0,0" Orientation="Horizontal" Spacing="7"
+                                        IsVisible="{Binding Dialog.Note, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                                <c:Icon VerticalAlignment="Center" Data="{StaticResource Icon.Shield}" Foreground="{DynamicResource Caution}" Size="14" />
+                                <TextBlock VerticalAlignment="Center" Classes="caption wrap" Text="{Binding Dialog.Note}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Margin="0,24,0,0" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+                        <Button Name="DialogCancel" MinWidth="88" Classes="secondary" Command="{Binding Dialog.CancelCommand, FallbackValue={x:Null}}" Content="{Binding Dialog.CancelText, FallbackValue=Cancel}" />
+                        <Button MinWidth="104" Classes="danger-solid" Command="{Binding Dialog.ConfirmCommand, FallbackValue={x:Null}}" Content="{Binding Dialog.ConfirmText, FallbackValue=Confirm}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Panel>
+    </Panel>
+</Window>

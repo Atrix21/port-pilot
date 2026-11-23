@@ -16,6 +16,7 @@
 <p align="center">
   <a href="https://github.com/Atrix21/port-pilot/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Atrix21/port-pilot/ci.yml?branch=main&style=flat-square&label=tests&labelColor=0b0b0c" /></a>
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0b0b0c?style=flat-square&logo=windows11&logoColor=white" />
+  <img alt="Linux" src="https://img.shields.io/badge/Linux-x64%20%7C%20arm64-0b0b0c?style=flat-square&logo=linux&logoColor=white" />
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-0b0b0c?style=flat-square&logo=dotnet&logoColor=white" />
   <img alt="Electron" src="https://img.shields.io/badge/Electron-no-e9a35c?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0b0b0c?style=flat-square" />
@@ -104,6 +105,49 @@ cd port-pilot
 
 Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). It takes a couple of minutes, most of which is the installer compressing itself.
 
+## On Linux
+
+The same app, built for Linux: the same design, the same view models, and a Linux engine underneath. It comes in two forms, and the release download contains both.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/linux-inspector-dark.png" alt="PortPilot on Linux, dark theme, with the inspector open" /></td>
+    <td width="50%"><img src="docs/screenshots/linux-inspector-light.png" alt="PortPilot on Linux, light theme" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>It's the same app. The icons come from your desktop's own <code>.desktop</code> entries.</sub></td>
+    <td align="center"><sub>Light theme, or follow the desktop.</sub></td>
+  </tr>
+</table>
+
+```sh
+curl -L https://github.com/Atrix21/port-pilot/releases/latest/download/portpilot-<version>-linux-x64.tar.gz | tar xz
+./portpilot-<version>-linux-x64/install.sh     # installs to ~/.local, no root; --uninstall removes it
+```
+
+Builds are available for `linux-x64` and `linux-arm64`. Both are native, so there's no .NET runtime to install.
+
+- **The desktop app** (`portpilot-desktop`, or *PortPilot* in your app launcher) has everything the Windows app does: live table, search, inspector, terminate with confirmation, tray icon, notifications when a dev server starts, start on login, and light and dark themes. The tray needs a desktop that shows tray icons (KDE, or GNOME with the AppIndicator extension, which Ubuntu ships). Without one, closing the window quits.
+- **The terminal app** (`portpilot`) is a single ~3 MB binary for SSH sessions and scripts:
+
+```text
+portpilot                 live view: arrows to move, / to search, x to stop, o to open, q to quit
+portpilot list            every listening port      -a all TCP states, -d dev ports, --json
+portpilot 3000            who is on port 3000, with path, command line and start time
+portpilot kill 3000       stop it (asks first; -y to skip)
+```
+
+Stopping a process sends `SIGTERM`, waits three seconds, then sends `SIGKILL`. It refuses if the PID has been reused since you looked, and it won't stop init, kernel threads or itself. Linux only tells you who owns another user's socket if you are root, so those rows say *Owned by another user*. The desktop app offers *Restart as root* (through polkit); in the terminal, use `sudo`.
+
+Settings live in `~/.config/PortPilot/settings.json` and logs in `~/.local/share/PortPilot/logs`. `portpilot-desktop --demo` runs it against a pretend machine.
+
+Build it yourself with the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0):
+
+```sh
+dotnet publish src/PortPilot.Linux -c Release -r linux-x64 -o out   # desktop app
+dotnet publish src/PortPilot.Cli -c Release -r linux-x64 -o out     # terminal app
+```
+
 ## Using it
 
 Start typing anywhere and it searches. Names, PIDs, ports, addresses and port labels all match, so `vite`, `postgres`, `5173` and `18244` all work. Prefix with `:` to match ports only (`:30`) or `pid:` for process IDs.
@@ -181,8 +225,11 @@ Before terminating, it checks the PID still belongs to a process with the same s
 ```text
 src/PortPilot.Core          The engine. No UI. Port tables, process inspection, termination,
                             change tracking, filtering, settings, logging.
-src/PortPilot.App           The WPF app. MVVM, a hand-built design system, Windows integration.
-tests/PortPilot.Core.Tests  41 tests. They open real sockets and kill real (consenting) processes.
+src/PortPilot.Presentation  View models and MVVM plumbing shared by both desktop apps. No UI framework.
+src/PortPilot.App           The Windows app (WPF). A hand-built design system and Windows integration.
+src/PortPilot.Linux         The Linux app (Avalonia). The same design system, ported, plus Linux integration.
+src/PortPilot.Cli           The terminal app (Linux and Windows). Native AOT, live view and commands.
+tests/PortPilot.Core.Tests  57 tests. They open real sockets and kill real (consenting) processes.
 tools/PortPilot.IconGen     Draws the app icon in code, because the icon is also code.
 installer/PortPilot.iss     The Inno Setup script.
 ```
@@ -192,6 +239,13 @@ installer/PortPilot.iss     The Inno Setup script.
 <br/>
 
 - **Discovery** calls `GetExtendedTcpTable` and `GetExtendedUdpTable` directly. Process details come from `QueryFullProcessImageName`, `GetProcessTimes` and `NtQueryInformationProcess` (for the command line). A cache keyed on PID *and* start time means steady-state scans only touch processes that are new.
+- **On Linux**, discovery parses `/proc/net/{tcp,tcp6,udp,udp6}` straight from bytes, with no per-line strings. procfs gives socket inodes rather than PIDs, so inodes are mapped to owners by walking `/proc/[pid]/fd`; that map is cached, so the walk only happens when a socket PortPilot has never seen appears, and it stops as soon as every new one is found. Process details come from `/proc/[pid]/{stat,exe,cmdline}`, and PID reuse is caught by comparing start times, as on Windows.
+- **The Linux app** shares every view model with the Windows app through `PortPilot.Presentation`. Only the views and the platform services are its own:
+  - `xdg-open` for links, and the FileManager1 D-Bus interface to show a file in the file manager
+  - XDG autostart, `notify-send` notifications and a StatusNotifierItem tray icon
+  - polkit for restarting as root, and a Unix socket to keep it to one instance per session
+
+  It is compiled ahead of time with trimming, so it has no JIT warm-up, and settings are read with source-generated JSON.
 - **Monitoring** runs on a background loop that never overlaps scans, and slows to every 5 seconds or more while the window is hidden. Snapshots are diffed, and long-lived row view models are updated in place, so the list never rebuilds and never flickers.
 - **The design system** is in `src/PortPilot.App/Themes`. It has colour tokens for both themes, a type scale (Segoe UI Variable for text, Cascadia Mono for numbers, tabular figures throughout), a 24-unit icon set drawn at a constant 1.5 px stroke, and every control restyled from scratch. Theme changes cross-fade.
 - **Windows integration** covers:

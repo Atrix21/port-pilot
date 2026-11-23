@@ -1,5 +1,6 @@
 using System.Globalization;
 using PortPilot.App.Mvvm;
+using PortPilot.App.Services;
 using PortPilot.Core.Processes;
 
 namespace PortPilot.App.ViewModels;
@@ -68,8 +69,8 @@ public sealed class InspectorViewModel(IProcessTerminator terminator) : Observab
 
     public string TerminateHint => _access switch
     {
-        TerminationAccess.RequiresElevation => "Requires administrator privileges",
-        TerminationAccess.Protected => "Windows protects this process",
+        TerminationAccess.RequiresElevation => $"Requires {PlatformText.AdminPrivileges}",
+        TerminationAccess.Protected => $"{PlatformText.Os} protects this process",
         TerminationAccess.NotRunning => "The process has exited",
         _ => "Ends the process immediately",
     };
