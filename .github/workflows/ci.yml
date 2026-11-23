@@ -110,11 +110,11 @@ jobs:
 
       - name: Smoke test
         run: |
-          python3 -m http.server 5173 --bind 127.0.0.1 &
+          python3 -m http.server 5173 --bind 127.0.0.1 > server.log 2>&1 &
           for i in $(seq 1 40); do out/portpilot who 5173 >/dev/null && break; sleep 0.5; done
           out/portpilot list
           out/portpilot who 5173 | grep -qi python || {
-            echo "::group::Diagnostics"; (lsof -nP -iTCP:5173 -sTCP:LISTEN || ss -ltnp 'sport = :5173') 2>&1; ps -ax -o pid,ppid,command | grep -i "http.server" | grep -v grep; echo "::endgroup::"; exit 1; }
+            echo "::group::Diagnostics"; command -v python3; python3 --version; cat server.log; lsof -nP -iTCP:5173 -sTCP:LISTEN || true; ps -ax -o pid,ppid,command | grep -i "http.server" | grep -v grep || true; echo "::endgroup::"; exit 1; }
           out/portpilot kill 5173 -y
 
       - name: Desktop app renders
@@ -150,11 +150,11 @@ jobs:
 
       - name: Smoke test
         run: |
-          python3 -m http.server 5173 --bind 127.0.0.1 &
+          python3 -m http.server 5173 --bind 127.0.0.1 > server.log 2>&1 &
           for i in $(seq 1 40); do out/portpilot who 5173 >/dev/null && break; sleep 0.5; done
           out/portpilot list
           out/portpilot who 5173 | grep -qi python || {
-            echo "::group::Diagnostics"; (lsof -nP -iTCP:5173 -sTCP:LISTEN || ss -ltnp 'sport = :5173') 2>&1; ps -ax -o pid,ppid,command | grep -i "http.server" | grep -v grep; echo "::endgroup::"; exit 1; }
+            echo "::group::Diagnostics"; command -v python3; python3 --version; cat server.log; lsof -nP -iTCP:5173 -sTCP:LISTEN || true; ps -ax -o pid,ppid,command | grep -i "http.server" | grep -v grep || true; echo "::endgroup::"; exit 1; }
           out/portpilot health 5173
           out/portpilot kill 5173 -y
 
