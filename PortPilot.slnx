@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/PortPilot.App/PortPilot.App.csproj" />
+    <Project Path="src/PortPilot.Cli/PortPilot.Cli.csproj" />
     <Project Path="src/PortPilot.Core/PortPilot.Core.csproj" />
+    <Project Path="src/PortPilot.Presentation/PortPilot.Presentation.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PortPilot.Core.Tests/PortPilot.Core.Tests.csproj" />

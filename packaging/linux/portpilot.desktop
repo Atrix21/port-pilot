@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=PortPilot
+GenericName=Port monitor
+Comment=See what's listening on your ports, and stop it
+Exec=portpilot-desktop
+Icon=portpilot
+Terminal=false
+Categories=Development;System;Monitor;
+Keywords=port;localhost;process;network;socket;kill;
+StartupWMClass=portpilot

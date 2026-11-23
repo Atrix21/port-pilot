@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -17,12 +18,14 @@ public interface ISettingsStore
 /// </summary>
 public sealed class JsonSettingsStore(string path, ILogger<JsonSettingsStore>? logger = null) : ISettingsStore
 {
-    private static readonly JsonSerializerOptions Options = new()
+    // Source-generated, so settings load without reflection (required for the native AOT Linux builds).
+    private static readonly JsonSerializerOptions Options = new(SettingsJsonContext.Default.Options)
     {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        Converters = { new JsonStringEnumConverter<ThemePreference>(JsonNamingPolicy.CamelCase), new JsonStringEnumConverter<SortColumn>(JsonNamingPolicy.CamelCase), new JsonStringEnumConverter<Discovery.ProtocolFilter>(JsonNamingPolicy.CamelCase) },
+        TypeInfoResolver = SettingsJsonContext.Default,
     };
+
+    private static readonly JsonTypeInfo<AppSettings> TypeInfo = (JsonTypeInfo<AppSettings>)Options.GetTypeInfo(typeof(AppSettings));
 
     private readonly ILogger _log = logger ?? NullLogger<JsonSettingsStore>.Instance;
     private readonly Lock _gate = new();
@@ -44,7 +47,7 @@ public sealed class JsonSettingsStore(string path, ILogger<JsonSettingsStore>? l
                 }
 
                 var json = File.ReadAllText(Path);
-                return (JsonSerializer.Deserialize<AppSettings>(json, Options) ?? new AppSettings()).Normalize();
+                return (JsonSerializer.Deserialize(json, TypeInfo) ?? new AppSettings()).Normalize();
             }
             catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
             {
@@ -62,7 +65,7 @@ public sealed class JsonSettingsStore(string path, ILogger<JsonSettingsStore>? l
             {
                 Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
                 var temp = Path + ".tmp";
-                File.WriteAllText(temp, JsonSerializer.Serialize(settings, Options));
+                File.WriteAllText(temp, JsonSerializer.Serialize(settings, TypeInfo));
                 File.Move(temp, Path, overwrite: true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -72,3 +75,7 @@ public sealed class JsonSettingsStore(string path, ILogger<JsonSettingsStore>? l
         }
     }
 }
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(AppSettings))]
+internal sealed partial class SettingsJsonContext : JsonSerializerContext;

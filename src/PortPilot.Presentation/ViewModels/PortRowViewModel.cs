@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using PortPilot.App.Mvvm;
+using PortPilot.App.Services;
 using PortPilot.Core.Model;
 
 namespace PortPilot.App.ViewModels;
@@ -54,7 +55,8 @@ public sealed class PortRowViewModel : ObservableObject
     // ── Process ──
     public int Pid => _entry.ProcessId;
 
-    public string PidText => Pid.ToString(CultureInfo.InvariantCulture);
+    /// <summary>On Linux PID 0 means the owner couldn't be determined, not a real process.</summary>
+    public string PidText => Pid == 0 && !OperatingSystem.IsWindows() ? "—" : Pid.ToString(CultureInfo.InvariantCulture);
 
     public string ProcessName => _entry.Process.DisplayName;
 
@@ -82,9 +84,9 @@ public sealed class PortRowViewModel : ObservableObject
             switch (Access)
             {
                 case ProcessAccessLevel.System:
-                    return Pid == 4 ? "Windows kernel · HTTP.sys and drivers" : "Windows kernel";
+                    return !OperatingSystem.IsWindows() ? "Kernel thread" : Pid == 4 ? "Windows kernel · HTTP.sys and drivers" : "Windows kernel";
                 case ProcessAccessLevel.Restricted:
-                    return "Details need administrator access";
+                    return Pid == 0 && !OperatingSystem.IsWindows() ? "Owned by another user" : $"Details need {PlatformText.Admin} access";
                 case ProcessAccessLevel.Exited:
                     return "Process has exited";
             }

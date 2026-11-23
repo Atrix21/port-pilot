@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>PortPilot.Linux</RootNamespace>
+    <AssemblyName>portpilot-desktop</AssemblyName>
+    <AssemblyTitle>PortPilot</AssemblyTitle>
+    <Description>Live localhost port and process monitor for developers.</Description>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <NoWarn>$(NoWarn);CA1515;CA1001;CA1812;CA2007;CA1031;CA1822</NoWarn>
+  </PropertyGroup>
+
+  <!-- Release builds are a single native binary: no .NET runtime to install, fast cold start. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <StackTraceSupport>false</StackTraceSupport>
+    <EventSourceSupport>false</EventSourceSupport>
+    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.6" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortPilot.Core\PortPilot.Core.csproj" />
+    <ProjectReference Include="..\PortPilot.Presentation\PortPilot.Presentation.csproj" />
+  </ItemGroup>
+
+</Project>

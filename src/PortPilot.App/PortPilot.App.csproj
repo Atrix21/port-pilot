@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PortPilot.Core\PortPilot.Core.csproj" />
+    <ProjectReference Include="..\PortPilot.Presentation\PortPilot.Presentation.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,54 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:PortPilot.Linux.Controls"
+             xmlns:v="using:PortPilot.Linux.Views"
+             xmlns:vm="using:PortPilot.App.ViewModels"
+             x:Class="PortPilot.Linux.Views.ShortcutsView"
+             x:DataType="vm:MainViewModel"
+             Width="620">
+    <UserControl.DataTemplates>
+        <DataTemplate x:DataType="v:ShortcutGroup">
+            <StackPanel Margin="0,0,0,18">
+                <TextBlock Margin="0,0,0,6" Classes="label" Text="{Binding Title}" />
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="v:Shortcut">
+                            <Grid Height="30" ColumnDefinitions="*,Auto">
+                                <TextBlock VerticalAlignment="Center" Classes="body" Text="{Binding Description}" />
+                                <ItemsControl Grid.Column="1" VerticalAlignment="Center" ItemsSource="{Binding Keys}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="x:String">
+                                            <Border Classes="keycap">
+                                                <TextBlock Text="{Binding}" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Border Classes="card">
+        <Grid RowDefinitions="Auto,*">
+            <Grid Margin="28,22,18,0">
+                <TextBlock VerticalAlignment="Center" Classes="heading" Text="Keyboard shortcuts" />
+                <Button HorizontalAlignment="Right" Classes="icon" Command="{Binding ToggleShortcutsCommand}" ToolTip.Tip="Close  ·  Esc">
+                    <c:Icon Data="{StaticResource Icon.Close}" Size="16" />
+                </Button>
+            </Grid>
+            <Grid Grid.Row="1" Margin="28,18,28,8" ColumnDefinitions="*,36,*">
+                <ItemsControl Name="LeftColumn" Focusable="False" />
+                <ItemsControl Name="RightColumn" Grid.Column="2" Focusable="False" />
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

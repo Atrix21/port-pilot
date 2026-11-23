@@ -5,6 +5,7 @@ using PortPilot.Core.Processes;
 namespace PortPilot.Core.Tests;
 
 [TestClass]
+[OSCondition(OperatingSystems.Windows)]
 public sealed class ProcessInfoProviderTests
 {
     [TestMethod]
@@ -89,6 +90,7 @@ public sealed class ProcessInfoProviderTests
 }
 
 [TestClass]
+[OSCondition(OperatingSystems.Windows)]
 public sealed class ProcessTerminatorTests
 {
     private readonly ProcessTerminator _terminator = new();
