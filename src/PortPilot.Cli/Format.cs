@@ -29,6 +29,8 @@ internal static class Format
 
     public static string Process(ProcessDetails p) => p.ProcessId == 0 && !OperatingSystem.IsWindows() ? "(other user)" : p.DisplayName;
 
+    public static string Project(ProcessDetails p) => p.Project?.DisplayText ?? "";
+
     public static string Age(DateTimeOffset? start)
     {
         if (start is not { } s)

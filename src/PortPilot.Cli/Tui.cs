@@ -19,7 +19,7 @@ internal sealed class Tui
     private const string Esc = "\e[";
     private const int ChromeLines = 7; // title, header, separator, 3 detail lines, footer
 
-    private enum Mode { Normal, Search, Confirm }
+    private enum Mode { Normal, Search, Confirm, ConfirmCleanup }
 
     private readonly Channel<object> _events = Channel.CreateUnbounded<object>(new UnboundedChannelOptions { SingleReader = true });
     private readonly PortChangeTracker _tracker = new();
@@ -158,6 +158,18 @@ internal sealed class Tui
             case Mode.Search:
                 OnSearchKey(key);
                 return;
+            case Mode.ConfirmCleanup:
+                _mode = Mode.Normal;
+                if (key.KeyChar is 'y' or 'Y')
+                {
+                    _ = CleanupAsync(monitor);
+                }
+                else
+                {
+                    Flash("Left them alone.");
+                }
+
+                return;
             case Mode.Confirm:
                 _mode = Mode.Normal;
                 if (key.KeyChar is 'y' or 'Y' && Selected is { } target)
@@ -220,6 +232,9 @@ internal sealed class Tui
             case 'o':
                 Open();
                 break;
+            case 'c':
+                ConfirmCleanup();
+                break;
         }
     }
 
@@ -278,6 +293,28 @@ internal sealed class Tui
                 _mode = Mode.Confirm;
                 break;
         }
+    }
+
+    private List<PortEntry> Orphans() => _tracker.Ports.Where(t => !t.IsClosed && t.Entry.Process.IsOrphaned)
+        .Select(t => t.Entry).GroupBy(e => e.ProcessId).Select(g => g.First()).ToList();
+
+    private void ConfirmCleanup()
+    {
+        if (Orphans().Count == 0)
+        {
+            Flash("Nothing was left behind by an ended agent session.");
+            return;
+        }
+
+        _mode = Mode.ConfirmCleanup;
+    }
+
+    private async Task CleanupAsync(PortMonitor monitor)
+    {
+        var orphans = Orphans();
+        var results = await Task.WhenAll(orphans.Select(e => _terminator.TerminateAsync(e.ProcessId, e.Process.StartTime))).ConfigureAwait(false);
+        Flash($"Stopped {results.Count(r => r.Succeeded)} of {orphans.Count} leftover processes.");
+        monitor.RefreshNow();
     }
 
     private async Task TerminateAsync(PortEntry entry, PortMonitor monitor)
@@ -403,6 +440,12 @@ internal sealed class Tui
             sb.Append(Esc).Append("1;33m");
             Format.Cell(sb, $" Stop {Format.Process(target.Entry.Process)} (PID {target.Entry.ProcessId})? y / N", width);
         }
+        else if (_mode == Mode.ConfirmCleanup)
+        {
+            var orphans = Orphans();
+            sb.Append(Esc).Append("1;33m");
+            Format.Cell(sb, $" Stop {orphans.Count} process{(orphans.Count == 1 ? "" : "es")} left behind by ended agent sessions ({string.Join(", ", orphans.Take(5).Select(o => $":{o.Port}"))})? y / N", width);
+        }
         else if (_message is not null && now < _messageUntil)
         {
             Format.Cell(sb, " " + _message, width);
@@ -411,7 +454,7 @@ internal sealed class Tui
         {
             sb.Append(Esc).Append("2m");
             var hint = _search.Length > 0 ? $" filter \"{_search}\" · Esc clear · " : " ";
-            Format.Cell(sb, hint + "↑↓ move · / search · x stop · o open · a all · d dev · t proto · q quit", width);
+            Format.Cell(sb, hint + "↑↓ move · / search · x stop · c clean up · o open · a all · d dev · t proto · q quit", width);
         }
 
         sb.Append(Esc).Append("0m").Append(Esc).Append('K').Append(Esc).Append('J');
@@ -431,7 +474,10 @@ internal sealed class Tui
             sb.Append(Esc).Append("2;9m");
         }
 
-        sb.Append(row.IsClosed ? "  " : row.IsNew(now, PortChangeTracker.DefaultNewWindow) ? $"{Esc}32m+ {Esc}39m" : "  ");
+        sb.Append(row.IsClosed ? "  "
+            : e.Process.IsOrphaned ? $"{Esc}33m! {Esc}39m"
+            : row.IsNew(now, PortChangeTracker.DefaultNewWindow) ? $"{Esc}32m+ {Esc}39m"
+            : "  ");
         Format.Cell(sb, e.Port.ToString(CultureInfo.InvariantCulture), 6);
         Format.Cell(sb, Format.Protocol(e.Binding), 6);
         Format.Cell(sb, Format.Address(e.Binding.LocalAddress), 16);
@@ -466,7 +512,14 @@ internal sealed class Tui
         var started = p.StartTime is { } s ? $" · started {s.ToLocalTime():HH:mm:ss} ({Format.Age(s)} ago)" : "";
         var parent = p.ParentProcessId is { } pp ? $" · parent {pp}" : "";
         sb.Append(Esc).Append('1').Append('m');
-        Format.Cell(sb, $" {Format.Process(p)} · PID {Format.Pid(e)}{parent}{started} · {Format.Url(e)}", width);
+        var project = p.Project is { } proj ? $" · {proj.DisplayText}" : "";
+        var agent = p.Agent switch
+        {
+            null => "",
+            { IsRunning: true } a => $" · via {a.Name}",
+            { } a => $" · LEFT BEHIND by an ended {a.Name} session (c to clean up)",
+        };
+        Format.Cell(sb, $" {Format.Process(p)} · PID {Format.Pid(e)}{parent}{started}{project}{agent} · {Format.Url(e)}", width);
         sb.Append(Esc).Append("0m");
         Eol(sb);
 

@@ -29,7 +29,7 @@ public static class PlatformServices
         logs ??= NullLoggerFactory.Instance;
         if (OperatingSystem.IsLinux())
         {
-            return new LinuxProcessInfoProvider(logs.CreateLogger<LinuxProcessInfoProvider>());
+            return new LinuxProcessInfoProvider(logs.CreateLogger<LinuxProcessInfoProvider>(), LinuxProcessInfoProvider.DefaultLineagePath);
         }
 
         EnsureWindows();

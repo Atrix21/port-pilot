@@ -135,9 +135,21 @@ portpilot                 live view: arrows to move, / to search, x to stop, o t
 portpilot list            every listening port      -a all TCP states, -d dev ports, --json
 portpilot 3000            who is on port 3000, with path, command line and start time
 portpilot kill 3000       stop it (asks first; -y to skip)
+portpilot projects        what each git project is running, and which Claude session started it
+portpilot cleanup         stop what ended Claude sessions left running (asks first; -y to skip)
 ```
 
 Stopping a process sends `SIGTERM`, waits three seconds, then sends `SIGKILL`. It refuses if the PID has been reused since you looked, and it won't stop init, kernel threads or itself. Linux only tells you who owns another user's socket if you are root, so those rows say *Owned by another user*. The desktop app offers *Restart as root* (through polkit); in the terminal, use `sudo`.
+
+### Projects and agents
+
+If you run several projects at once, especially with a Claude Code session in each, ports stop being the useful unit. So on Linux PortPilot also works out *whose* each port is:
+
+- **Which project.** Each process's working directory is matched to its git repository, branch and worktree. Ports are grouped into project cards above the table (*atlas-web · feature/auth: 3 ports, 2 processes*), and each row is tagged. Click a card to see only that project, or search `project:atlas`.
+- **Which agent.** If a process descends from a Claude Code session, it's tagged *Claude*, and the inspector names the session.
+- **What was left behind.** When that session ends but its dev server keeps running, the row turns *Left behind*. The project card offers *Clean up*, and there's *Clean up all* for every project at once. This is the `EADDRINUSE` you'd otherwise hit tomorrow morning.
+
+PortPilot can only connect a leftover process to its session if it saw the process while the session was running. Once the session ends, Linux hands the process to init and the link is gone. Keep the desktop app in the tray, or the live view open, and it records these links in `$XDG_RUNTIME_DIR/portpilot-lineage`, so even a one-off `portpilot cleanup` knows what to stop. All of this needs Linux's `/proc`, so Windows doesn't have project grouping or agent tracking yet.
 
 Settings live in `~/.config/PortPilot/settings.json` and logs in `~/.local/share/PortPilot/logs`. `portpilot-desktop --demo` runs it against a pretend machine.
 
@@ -229,7 +241,7 @@ src/PortPilot.Presentation  View models and MVVM plumbing shared by both desktop
 src/PortPilot.App           The Windows app (WPF). A hand-built design system and Windows integration.
 src/PortPilot.Linux         The Linux app (Avalonia). The same design system, ported, plus Linux integration.
 src/PortPilot.Cli           The terminal app (Linux and Windows). Native AOT, live view and commands.
-tests/PortPilot.Core.Tests  57 tests. They open real sockets and kill real (consenting) processes.
+tests/PortPilot.Core.Tests  63 tests. They open real sockets, kill real (consenting) processes, and impersonate Claude.
 tools/PortPilot.IconGen     Draws the app icon in code, because the icon is also code.
 installer/PortPilot.iss     The Inno Setup script.
 ```
@@ -240,6 +252,10 @@ installer/PortPilot.iss     The Inno Setup script.
 
 - **Discovery** calls `GetExtendedTcpTable` and `GetExtendedUdpTable` directly. Process details come from `QueryFullProcessImageName`, `GetProcessTimes` and `NtQueryInformationProcess` (for the command line). A cache keyed on PID *and* start time means steady-state scans only touch processes that are new.
 - **On Linux**, discovery parses `/proc/net/{tcp,tcp6,udp,udp6}` straight from bytes, with no per-line strings. procfs gives socket inodes rather than PIDs, so inodes are mapped to owners by walking `/proc/[pid]/fd`; that map is cached, so the walk only happens when a socket PortPilot has never seen appears, and it stops as soon as every new one is found. Process details come from `/proc/[pid]/{stat,exe,cmdline}`, and PID reuse is caught by comparing start times, as on Windows.
+- **Projects and agents** come from data the scan already reads, so they add almost nothing to a scan:
+  - **Project:** the working directory (`/proc/[pid]/cwd`) is matched to the nearest `.git`, and the result is cached per directory. Linked worktrees are named after their main checkout. The branch is re-read from `HEAD`, which is one small file.
+  - **Agent:** found by walking `/proc/[pid]/stat` up the chain of parent processes, done only when a process is first seen.
+  - **Leftovers:** a process counts as left behind when its recorded agent no longer exists with the same start time.
 - **The Linux app** shares every view model with the Windows app through `PortPilot.Presentation`. Only the views and the platform services are its own:
   - `xdg-open` for links, and the FileManager1 D-Bus interface to show a file in the file manager
   - XDG autostart, `notify-send` notifications and a StatusNotifierItem tray icon

@@ -15,9 +15,10 @@ public enum ProtocolFilter
 /// </summary>
 /// <remarks>
 /// The query matches process names, PIDs, ports and addresses. A leading colon (<c>:5173</c>)
-/// restricts matching to port numbers; <c>pid:1234</c> restricts matching to process IDs.
+/// restricts matching to port numbers; <c>pid:1234</c> restricts matching to process IDs; <c>project:atlas</c>
+/// restricts matching to the git project (name or branch) a process is working in.
 /// </remarks>
-public sealed record PortFilter(string Query = "", ProtocolFilter Protocol = ProtocolFilter.All, bool ListeningOnly = true, bool DevPortsOnly = false)
+public sealed record PortFilter(string Query = "", ProtocolFilter Protocol = ProtocolFilter.All, bool ListeningOnly = true, bool DevPortsOnly = false, bool OrphansOnly = false)
 {
     public static PortFilter Default { get; } = new();
 
@@ -47,6 +48,11 @@ public sealed record PortFilter(string Query = "", ProtocolFilter Protocol = Pro
             return false;
         }
 
+        if (OrphansOnly && !entry.Process.IsOrphaned)
+        {
+            return false;
+        }
+
         return !HasQuery || MatchesQuery(entry, Query.Trim());
     }
 
@@ -62,6 +68,12 @@ public sealed record PortFilter(string Query = "", ProtocolFilter Protocol = Pro
             return MatchesNumber(entry.ProcessId, query[4..].Trim());
         }
 
+        if (query.StartsWith("project:", StringComparison.OrdinalIgnoreCase))
+        {
+            var project = query[8..].Trim();
+            return entry.Process.Project is { } p && (project.Length == 0 || Contains(p.Name, project) || Contains(p.Branch, project));
+        }
+
         if (int.TryParse(query, NumberStyles.None, CultureInfo.InvariantCulture, out _))
         {
             // Numbers match ports by prefix and PIDs exactly, so "30" finds 3000 and 3001.
@@ -73,7 +85,9 @@ public sealed record PortFilter(string Query = "", ProtocolFilter Protocol = Pro
             || Contains(entry.Known?.Name, query)
             || Contains(entry.Binding.LocalAddress.ToString(), query)
             || Contains(entry.Process.ExecutablePath, query)
-            || Contains(entry.Binding.Protocol.ToString(), query);
+            || Contains(entry.Binding.Protocol.ToString(), query)
+            || Contains(entry.Process.Project?.Name, query)
+            || Contains(entry.Process.Project?.Branch, query);
     }
 
     private static bool MatchesNumber(int value, string query) =>
