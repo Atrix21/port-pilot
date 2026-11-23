@@ -95,6 +95,11 @@ jobs:
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
       PRE_RELEASE: ${{ inputs.pre-release && '--pre-release' || '' }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: extensions/vscode/package.json
+          sparse-checkout-cone-mode: false
+
       - uses: actions/download-artifact@v4
         with:
           pattern: vsix-*
@@ -116,14 +121,15 @@ jobs:
       - name: Publish to the VS Code Marketplace
         if: env.VSCE_PAT != ''
         run: |
-          npx --yes @vscode/vsce verify-pat atrix21 -p "$VSCE_PAT"
+          publisher=$(node -p "require('./extensions/vscode/package.json').publisher")
+          npx --yes @vscode/vsce verify-pat "$publisher" -p "$VSCE_PAT"
           npx --yes @vscode/vsce publish $PRE_RELEASE --packagePath vsix/*.vsix -p "$VSCE_PAT"
 
       - name: Publish to Open VSX (Cursor, Windsurf, VSCodium, Gitpod)
         if: env.OVSX_PAT != ''
         run: |
           # Creating the namespace is a one-time step; it fails harmlessly once it exists.
-          npx --yes ovsx create-namespace atrix21 -p "$OVSX_PAT" || true
+          npx --yes ovsx create-namespace "$(node -p "require('./extensions/vscode/package.json').publisher")" -p "$OVSX_PAT" || true
           for f in vsix/*.vsix; do npx --yes ovsx publish "$f" $PRE_RELEASE -p "$OVSX_PAT"; done
 
       - name: Not published
