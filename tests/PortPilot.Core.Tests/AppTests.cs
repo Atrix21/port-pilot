@@ -43,7 +43,8 @@ public sealed class AppAnalyzerTests
         // listener and a worker next to it.
         var port = FreePort();
         var script = Path.GetTempFileName();
-        File.WriteAllText(script, $"python3 -m http.server {port} --bind 127.0.0.1 &\nsleep 30 &\nwait\n");
+        // A bare listener: http.server resolves its own host name before binding, which can hang on CI runners.
+        File.WriteAllText(script, $"python3 -c \"import socket,time; s=socket.socket(); s.bind(('127.0.0.1', {port})); s.listen(); time.sleep(30)\" &\nsleep 30 &\nwait\n");
         using var launcher = Process.Start(new ProcessStartInfo("python3", ["-c", $"import subprocess; subprocess.run(['sh', '{script}'])"]) { UseShellExecute = false })!;
         try
         {
