@@ -111,7 +111,7 @@ jobs:
       - name: Smoke test
         run: |
           python3 -m http.server 5173 --bind 127.0.0.1 &
-          sleep 1
+          for i in $(seq 1 40); do out/portpilot who 5173 >/dev/null && break; sleep 0.5; done
           out/portpilot list
           out/portpilot who 5173 | grep -q python
           out/portpilot kill 5173 -y
@@ -150,7 +150,7 @@ jobs:
       - name: Smoke test
         run: |
           python3 -m http.server 5173 --bind 127.0.0.1 &
-          sleep 1
+          for i in $(seq 1 40); do out/portpilot who 5173 >/dev/null && break; sleep 0.5; done
           out/portpilot list
           out/portpilot who 5173 | grep -q python
           out/portpilot health 5173
