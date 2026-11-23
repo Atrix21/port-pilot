@@ -7,3 +7,4 @@ package.sh
 **/*.map
 *.vsix
 .gitignore
+media/screenshots/**

@@ -96,7 +96,7 @@ internal static class Integrations
     /// <summary>Hook, watcher and MCP server in one go.</summary>
     public static int SetupClaude(bool stop)
     {
-        var results = new[] { InstallHooks(stop), InstallWatcher(), RegisterMcp() };
+        var results = new[] { InstallHooks(stop), Report(AgentIntegration.InstallStatusLine(Self)), InstallWatcher(), RegisterMcp() };
         return results.All(r => r == 0) ? 0 : 1;
     }
 

@@ -1,8 +1,8 @@
 {
   "name": "portpilot-dev",
   "displayName": "PortPilot: Ports, Projects & Agents",
-  "description": "What's listening on your ports, which project and coding agent it belongs to, whether it's healthy, and what was left behind. Plus an MCP server so agents can ask.",
-  "version": "1.0.0",
+  "description": "Every port on your machine, grouped by git project, tagged with the coding agent that started it (Claude Code, Codex, Gemini…), with Start Again when a dev server stops and clean-up for what agents left behind.",
+  "version": "1.1.0",
   "publisher": "Atrix21",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -36,7 +36,10 @@
     "process",
     "kill",
     "mcp",
-    "claude"
+    "claude",
+    "agent",
+    "git",
+    "worktree"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
@@ -58,6 +61,11 @@
           "id": "portpilot.ports",
           "name": "Ports",
           "icon": "media/icon.svg"
+        },
+        {
+          "id": "portpilot.recent",
+          "name": "Recently Stopped",
+          "icon": "media/icon.svg"
         }
       ]
     },
@@ -66,6 +74,10 @@
         "view": "portpilot.ports",
         "contents": "The PortPilot terminal app wasn't found.\n[Install PortPilot](https://github.com/Atrix21/port-pilot/releases/latest)\nOr set `portpilot.cliPath` in Settings.",
         "when": "portpilot.cliMissing"
+      },
+      {
+        "view": "portpilot.recent",
+        "contents": "Dev servers from this workspace that stop show up here, ready to start again in a terminal."
       }
     ],
     "commands": [
@@ -89,7 +101,7 @@
       },
       {
         "command": "portpilot.whoIsOn",
-        "title": "Who Is On Port\u2026",
+        "title": "Who Is On Port…",
         "category": "PortPilot"
       },
       {
@@ -135,6 +147,24 @@
         "command": "portpilot.setupClaude",
         "title": "Set Up Claude Code Integration (hook, watcher, MCP)",
         "category": "PortPilot"
+      },
+      {
+        "command": "portpilot.runAgain",
+        "title": "Start Again",
+        "category": "PortPilot",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "portpilot.forgetRecent",
+        "title": "Remove from List",
+        "category": "PortPilot",
+        "icon": "$(close)"
+      },
+      {
+        "command": "portpilot.clearRecent",
+        "title": "Clear Recently Stopped",
+        "category": "PortPilot",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -153,6 +183,11 @@
           "command": "portpilot.cleanup",
           "when": "view == portpilot.ports && portpilot.hasLeftovers",
           "group": "navigation@3"
+        },
+        {
+          "command": "portpilot.clearRecent",
+          "when": "view == portpilot.recent",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -200,6 +235,16 @@
           "command": "portpilot.cleanup",
           "when": "view == portpilot.ports && viewItem =~ /leftovers/",
           "group": "3_stop@2"
+        },
+        {
+          "command": "portpilot.runAgain",
+          "when": "view == portpilot.recent && viewItem == recent",
+          "group": "inline@1"
+        },
+        {
+          "command": "portpilot.forgetRecent",
+          "when": "view == portpilot.recent && viewItem == recent",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
@@ -225,6 +270,14 @@
         },
         {
           "command": "portpilot.copyPid",
+          "when": "false"
+        },
+        {
+          "command": "portpilot.runAgain",
+          "when": "false"
+        },
+        {
+          "command": "portpilot.forgetRecent",
           "when": "false"
         }
       ]
@@ -261,6 +314,34 @@
           "type": "boolean",
           "default": true,
           "description": "Offer the PortPilot MCP server to agents in VS Code (e.g. Copilot agent mode)."
+        },
+        "portpilot.notifyOnStop": {
+          "type": "boolean",
+          "default": true,
+          "description": "When one of this workspace's dev servers stops, say so and offer to start it again."
+        },
+        "portpilot.notifyOnStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also say when a new server starts listening in this workspace."
+        },
+        "portpilot.ignorePorts": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "default": [],
+          "description": "Ports never to show."
+        },
+        "portpilot.hideSystemPorts": {
+          "type": "boolean",
+          "default": true,
+          "description": "When showing every port, hide system ports below 1024."
+        },
+        "portpilot.showTooling": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show editors, language servers and build daemons (VS Code helpers, Gradle, tsserver, …) that listen on ports. Hidden by default to keep the list to what you started."
         }
       }
     },

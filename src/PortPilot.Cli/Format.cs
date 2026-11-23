@@ -12,6 +12,11 @@ internal static class Format
 
     public static string Address(IPAddress address)
     {
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
         if (address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any))
         {
             return "*";

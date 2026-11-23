@@ -321,7 +321,7 @@ public sealed class PortRowViewModel : ObservableObject
         return true;
     }
 
-    private static string FormatAddress(IPAddress address) => address.ToString();
+    private static string FormatAddress(IPAddress address) => (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString();
 
     internal static string? ExtractArguments(string? commandLine)
     {

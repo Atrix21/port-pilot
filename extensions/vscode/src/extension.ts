@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { ago, RecentServer, runAgain, ServerWatch } from "./history";
+import { runtimeIcon, runtimeOf, uptime } from "./runtime";
 
 /** One endpoint, as printed by `portpilot list --json`. */
 interface PortEntry {
@@ -20,6 +22,8 @@ interface PortEntry {
   project?: { name: string; branch?: string | null; root: string; worktree: boolean };
   agent?: { name: string; pid: number; running: boolean };
   orphaned: boolean;
+  /** An editor, language server or build daemon rather than something started on purpose. */
+  tooling?: boolean;
 }
 
 const NO_PROJECT = "\u0000other";
@@ -27,6 +31,7 @@ const NO_PROJECT = "\u0000other";
 let cli: string | undefined;
 let entries: PortEntry[] = [];
 let output: vscode.OutputChannel;
+let watch: ServerWatch;
 
 // ═════════════ The terminal app ═════════════
 
@@ -104,6 +109,18 @@ function normalise(p: string): string {
   return process.platform === "win32" || process.platform === "darwin" ? n.toLowerCase() : n;
 }
 
+/** The user's port filters: ignored ports always, system ports (< 1024) unless turned off. */
+function visibleByFilters(entry: PortEntry, scope: string | undefined): boolean {
+  const config = vscode.workspace.getConfiguration("portpilot");
+  if ((config.get<number[]>("ignorePorts") ?? []).includes(entry.port)) {
+    return false;
+  }
+  if (entry.tooling && !config.get<boolean>("showTooling")) {
+    return false;
+  }
+  return !(scope === "all" && config.get<boolean>("hideSystemPorts") && entry.port < 1024);
+}
+
 function isHttp(entry: PortEntry): boolean {
   return entry.protocol.startsWith("tcp") && entry.state === "Listening" && !/PostgreSQL|MySQL|Redis|MongoDB|RabbitMQ|Kafka|SQL Server|Memcached|Elasticsearch/i.test(entry.service ?? "");
 }
@@ -138,7 +155,7 @@ class PortsProvider implements vscode.TreeDataProvider<Node> {
     }
 
     const scope = vscode.workspace.getConfiguration("portpilot").get<string>("scope");
-    const visible = scope === "all" ? entries : entries.filter(belongsToWorkspace);
+    const visible = (scope === "all" ? entries : entries.filter(belongsToWorkspace)).filter((e) => visibleByFilters(e, scope));
     const groups = new Map<string, PortEntry[]>();
     for (const entry of visible) {
       const key = entry.project?.name ?? NO_PROJECT;
@@ -168,18 +185,16 @@ class PortsProvider implements vscode.TreeDataProvider<Node> {
 
     const e = node.entry;
     const item = new vscode.TreeItem(`:${e.port}  ${e.process}`, vscode.TreeItemCollapsibleState.None);
+    const runtime = runtimeOf(e.process, e.service, e.commandLine);
     const tags = [
-      e.service,
-      e.protocol,
+      e.service ?? runtime?.label,
+      e.protocol.startsWith("udp") ? "UDP" : undefined,
       e.agent ? `${agentShort(e.agent.name)}${e.agent.running ? "" : " · ended"}` : undefined,
       e.orphaned ? "left behind" : undefined,
-      e.project?.branch ?? undefined,
+      uptime(e.started),
     ].filter(Boolean);
     item.description = tags.join(" · ");
-    item.iconPath = new vscode.ThemeIcon(
-      e.orphaned ? "warning" : e.state === "Listening" || e.state === "Bound" ? "circle-filled" : "circle-outline",
-      new vscode.ThemeColor(e.orphaned ? "list.warningForeground" : "testing.iconPassed"),
-    );
+    item.iconPath = runtimeIcon(runtime, e.orphaned, e.state === "Listening" || e.state === "Bound");
     item.contextValue = `port${isHttp(e) ? " http" : ""}`;
     item.tooltip = tooltip(e);
     if (isHttp(e)) {
@@ -189,10 +204,39 @@ class PortsProvider implements vscode.TreeDataProvider<Node> {
   }
 }
 
+/** Dev servers that ran in this workspace and stopped, newest first, with Start again. */
+class RecentProvider implements vscode.TreeDataProvider<RecentServer> {
+  private readonly changed = new vscode.EventEmitter<void>();
+  readonly onDidChangeTreeData = this.changed.event;
+
+  refresh(): void {
+    this.changed.fire();
+  }
+
+  getChildren(node?: RecentServer): RecentServer[] {
+    return node ? [] : watch.recent;
+  }
+
+  getTreeItem(r: RecentServer): vscode.TreeItem {
+    const item = new vscode.TreeItem(`:${r.port}  ${r.process}`, vscode.TreeItemCollapsibleState.None);
+    item.description = [r.project, r.branch, ago(r.stopped)].filter(Boolean).join(" · ");
+    item.iconPath = new vscode.ThemeIcon("history");
+    item.contextValue = "recent";
+    const md = new vscode.MarkdownString(undefined, true);
+    md.appendMarkdown(`**:${r.port}** ${r.process}${r.service ? ` · ${r.service}` : ""} · stopped ${ago(r.stopped)}\n\n`);
+    md.appendCodeblock(r.commandLine.length > 300 ? r.commandLine.slice(0, 300) + "…" : r.commandLine, "sh");
+    md.appendMarkdown(`in \`${r.workingDirectory}\`${r.agent ? `\n\nStarted by ${r.agent}` : ""}\n\nClick to start it again in a terminal.`);
+    item.tooltip = md;
+    item.command = { command: "portpilot.runAgain", title: "Start Again", arguments: [r] };
+    return item;
+  }
+}
+
 function tooltip(e: PortEntry): vscode.MarkdownString {
   const md = new vscode.MarkdownString(undefined, true);
   md.appendMarkdown(`**:${e.port}** ${e.protocol} on \`${e.address}\`${e.service ? ` · ${e.service}` : ""}\n\n`);
-  md.appendMarkdown(`**${e.process}** · PID ${e.pid}${e.started ? ` · started ${new Date(e.started).toLocaleString()}` : ""}\n\n`);
+  const runtime = runtimeOf(e.process, e.service, e.commandLine);
+  md.appendMarkdown(`**${e.process}**${runtime ? ` (${runtime.label})` : ""} · PID ${e.pid}${e.started ? ` · up ${uptime(e.started)}, since ${new Date(e.started).toLocaleString()}` : ""}\n\n`);
   if (e.commandLine) {
     md.appendCodeblock(e.commandLine.length > 300 ? e.commandLine.slice(0, 300) + "…" : e.commandLine, "sh");
   }
@@ -224,6 +268,7 @@ async function stop(entry: PortEntry, refresh: () => Promise<void>): Promise<voi
     return;
   }
 
+  watch.expectStop(entry.pid);
   const result = await run(["kill", `pid:${entry.pid}`, "-y"]);
   vscode.window.showInformationMessage(result.trim() || `Stopped ${entry.process}.`);
   await refresh();
@@ -268,7 +313,8 @@ async function whoIsOn(port: number | undefined, refresh: () => Promise<void>): 
     { label: "$(search) Find a free port instead", action: () => freePort(port) },
   ];
   const owner = [e.project?.name, e.agent ? `${e.agent.running ? "started by" : "left behind by"} ${e.agent.name}` : undefined].filter(Boolean).join(" · ");
-  const choice = await vscode.window.showQuickPick(picks, { title: `:${port} is held by ${e.process}${owner ? ` (${owner})` : ""}` });
+  const heldBy = `:${port} is held by ${e.process}${owner ? ` (${owner})` : ""}`;
+  const choice = await vscode.window.showQuickPick(picks, { title: heldBy, placeHolder: `${heldBy}. What should happen?` });
   await choice?.action();
 }
 
@@ -313,6 +359,7 @@ async function cleanup(refresh: () => Promise<void>, project?: string): Promise<
   }
 
   for (const pid of pids) {
+    watch.expectStop(pid);
     await run(["kill", `pid:${pid}`, "-y"]).catch(() => undefined);
   }
   vscode.window.showInformationMessage(`Stopped ${pids.length} leftover ${pids.length === 1 ? "process" : "processes"}.`);
@@ -345,6 +392,7 @@ export interface PortPilotApi {
   cliPath(): string | undefined;
   entries(): readonly PortEntry[];
   workspaceEntries(): readonly PortEntry[];
+  recent(): readonly RecentServer[];
   refresh(): Promise<void>;
 }
 
@@ -353,7 +401,11 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
   cli = resolveCli(context);
   void vscode.commands.executeCommand("setContext", "portpilot.cliMissing", !cli);
 
+  watch = new ServerWatch(context.workspaceState);
   const provider = new PortsProvider();
+  const recent = new RecentProvider();
+  const recentView = vscode.window.createTreeView("portpilot.recent", { treeDataProvider: recent });
+  watch.onDidChange(() => recent.refresh());
   const view = vscode.window.createTreeView("portpilot.ports", { treeDataProvider: provider, showCollapseAll: true });
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = "portpilot.ports.focus";
@@ -363,6 +415,7 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
     provider.refresh();
     const mine = entries.filter(belongsToWorkspace);
     const leftovers = entries.filter((e) => e.orphaned);
+    void announce(await watch.update(mine.filter((e) => visibleByFilters(e, "workspace"))));
     void vscode.commands.executeCommand("setContext", "portpilot.hasLeftovers", leftovers.length > 0);
     view.badge = leftovers.length ? { value: leftovers.length, tooltip: `${leftovers.length} left behind by ended agent sessions` } : undefined;
 
@@ -393,6 +446,10 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
   context.subscriptions.push(
     output,
     view,
+    recentView,
+    vscode.commands.registerCommand("portpilot.runAgain", (r: RecentServer) => r && runAgain(r)),
+    vscode.commands.registerCommand("portpilot.forgetRecent", (r: RecentServer) => r && watch.forget(r.key)),
+    vscode.commands.registerCommand("portpilot.clearRecent", () => watch.clear()),
     status,
     { dispose: () => clearInterval(timer) },
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -441,8 +498,33 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
     cliPath: () => cli,
     entries: () => entries,
     workspaceEntries: () => entries.filter(belongsToWorkspace),
+    recent: () => watch.recent,
     refresh,
   };
+}
+
+/** Toasts for this workspace's servers stopping (with Start again) and, if asked for, starting. */
+async function announce(changes: { stopped: RecentServer[]; started: { port: number; process: string; project?: { name: string } }[] }): Promise<void> {
+  const config = vscode.workspace.getConfiguration("portpilot");
+  if (config.get<boolean>("notifyOnStop")) {
+    for (const r of changes.stopped) {
+      const where = r.project ? `${r.project}: ` : "";
+      const choice = await vscode.window.showWarningMessage(`${where}${r.service ?? r.process} on :${r.port} stopped.`, "Start Again", "Show Recent");
+      if (choice === "Start Again") {
+        runAgain(r);
+      } else if (choice === "Show Recent") {
+        void vscode.commands.executeCommand("portpilot.recent.focus");
+      }
+    }
+  }
+  if (config.get<boolean>("notifyOnStart")) {
+    for (const e of changes.started) {
+      const choice = await vscode.window.showInformationMessage(`${e.project ? `${e.project.name}: ` : ""}${e.process} started on :${e.port}.`, "Open");
+      if (choice === "Open") {
+        void vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${e.port}`));
+      }
+    }
+  }
 }
 
 export function deactivate(): void {}

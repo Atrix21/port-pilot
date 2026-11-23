@@ -187,11 +187,13 @@ One command connects all of this to Claude Code:
 portpilot setup claude          # add --stop to also stop leftovers when a session ends
 ```
 
-That sets up three things. Each can also be switched on or off in Settings → Coding agents.
+That sets up the following. Each can also be switched on or off in Settings → Coding agents.
 
 | What | Why |
 | --- | --- |
 | **A SessionEnd hook** in `~/.claude/settings.json` | When a session ends, its process tree is still intact. The hook records everything the session started, so leftovers are recognised even if PortPilot wasn't running at the time. |
+| **A dev-server guard** (a PreToolUse hook on Bash) | If Claude is about to start a dev server that this project already has running and answering, the command is blocked. Claude gets a message to reuse `localhost:5173`, and how to stop it if a restart is really needed. Asking for a port something else holds gets a few free ones suggested instead. |
+| **A status line** | `⚓ :5173 Vite  :24678 Vite HMR  ⚠ 1 left behind`: this project's servers, at a glance. It's only added if you don't already have a status line. |
 | **A background watcher** (systemd user service, or a scheduled task on Windows) | Scans every 3 seconds with almost no CPU, and records sessions from agents that have no hooks. |
 | **An MCP server** (`portpilot mcp`) | Claude can ask PortPilot instead of guessing. |
 

@@ -417,6 +417,7 @@ internal sealed class McpServer
         }
 
         w.WriteBoolean("leftBehind", p.IsOrphaned);
+        w.WriteBoolean("tooling", ToolingDetector.IsTooling(p));
         if (p.Access != ProcessAccessLevel.Full)
         {
             w.WriteString("access", p.Access.ToString());

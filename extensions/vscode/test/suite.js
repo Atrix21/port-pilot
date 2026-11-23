@@ -30,6 +30,27 @@ exports.run = async function run() {
     }
 
     await vscode.commands.executeCommand("portpilot.refresh");
+
+    // A server that stops is remembered, and Start Again brings it back from a terminal.
+    await vscode.workspace.getConfiguration("portpilot").update("notifyOnStop", false, vscode.ConfigurationTarget.Global);
+    server.kill();
+    for (let i = 0; i < 3; i++) {
+      await api.refresh();
+    }
+    const recent = api.recent().find((r) => r.port === 5179);
+    assert.ok(recent, "the stopped server is in Recently Stopped");
+    assert.ok(recent.commandLine.includes("http.server 5179"), recent.commandLine);
+    await vscode.commands.executeCommand("portpilot.runAgain", recent);
+    let back;
+    for (let i = 0; i < 40 && !back; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      await api.refresh();
+      back = api.workspaceEntries().find((e) => e.port === 5179);
+    }
+    assert.ok(back, "Start Again brought the server back");
+    assert.ok(!api.recent().some((r) => r.port === 5179), "a running server leaves Recently Stopped");
+    await new Promise((resolve) => require("node:child_process").execFile(process.env.PORTPILOT_TEST_CLI, ["kill", "pid:" + back.pid, "-y"], resolve));
+    console.log("Recently Stopped and Start Again OK");
     console.log(`PortPilot extension OK: ${api.entries().length} endpoints, ${mine.length} in the workspace, :5179 → ${entry.process} (${entry.project.name} · ${entry.project.branch})`);
   } finally {
     server.kill();

@@ -50,6 +50,10 @@ switch (command)
         return Who(rest);
     case "hook" when rest.FirstOrDefault() == "session-end":
         return await Integrations.SessionEndHookAsync(stopFlag);
+    case "hook" when rest.FirstOrDefault() == "pre-bash":
+        return await Guard.PreBashAsync();
+    case "statusline":
+        return await Guard.StatusLineAsync();
     case "install-hooks":
         return Integrations.InstallHooks(stopFlag);
     case "uninstall-hooks":
@@ -496,6 +500,7 @@ static void WriteJson(Utf8JsonWriter w, PortEntry e)
     }
 
     w.WriteBoolean("orphaned", p.IsOrphaned);
+    w.WriteBoolean("tooling", PortPilot.Core.Processes.ToolingDetector.IsTooling(p));
     w.WriteString("service", e.Known?.Name);
     w.WriteEndObject();
 }
@@ -515,8 +520,10 @@ static string Help() => """
       portpilot logs <port> [n]      the last n lines it wrote (redirected to a file, or the journal)
 
     Agents and integrations
-      portpilot setup claude         all three below in one go   --stop also stops leftovers when a session ends
-      portpilot install-hooks        record what each Claude Code session started, when it ends
+      portpilot setup claude         everything below in one go   --stop also stops leftovers when a session ends
+      portpilot install-hooks        record what each Claude Code session started, and stop it starting a
+                                     second copy of a dev server that is already running
+      portpilot statusline           this project's servers, for Claude Code's status line
       portpilot install-watcher      a background watcher that starts at login
       portpilot install-mcp          let Claude ask PortPilot directly (MCP server: portpilot mcp)
       portpilot uninstall-hooks | uninstall-watcher

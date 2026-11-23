@@ -49,6 +49,10 @@ public static class AgentIntegration
 
     public static bool HookStopsLeftovers => FindHook(ReadClaudeSettings())?.Contains("--stop", StringComparison.Ordinal) == true;
 
+    /// <summary>
+    /// Installs both Claude Code hooks: SessionEnd (records what the session started) and a PreToolUse guard
+    /// on Bash (stops a second copy of a dev server that is already running for the project).
+    /// </summary>
     public static IntegrationResult InstallHook(string cliPath, bool stop)
     {
         try
@@ -56,22 +60,13 @@ public static class AgentIntegration
             var settings = ReadClaudeSettings();
             var hooks = settings["hooks"] as JsonObject ?? [];
             settings["hooks"] = hooks;
-            var sessionEnd = hooks["SessionEnd"] as JsonArray ?? [];
-            hooks["SessionEnd"] = sessionEnd;
-            RemoveOurHook(sessionEnd);
-            sessionEnd.Add((JsonNode)new JsonObject
-            {
-                ["hooks"] = new JsonArray(new JsonObject
-                {
-                    ["type"] = "command",
-                    ["command"] = $"\"{cliPath}\" hook session-end{(stop ? " --stop" : "")}",
-                    ["timeout"] = 15,
-                }),
-            });
+            AddHook(hooks, "SessionEnd", null, $"\"{cliPath}\" hook session-end{(stop ? " --stop" : "")}", 15);
+            AddHook(hooks, "PreToolUse", "Bash", $"\"{cliPath}\" hook pre-bash", 10);
             WriteClaudeSettings(settings);
-            return new(true, stop
+            return new(true, (stop
                 ? "When a Claude Code session ends, PortPilot records what it started and stops anything still holding a port."
-                : "When a Claude Code session ends, PortPilot records what it started, so leftovers show up as \"Left behind\".");
+                : "When a Claude Code session ends, PortPilot records what it started, so leftovers show up as \"Left behind\".")
+                + " Claude is also stopped from starting a second copy of a dev server that is already running.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -84,16 +79,19 @@ public static class AgentIntegration
         try
         {
             var settings = ReadClaudeSettings();
-            if (settings["hooks"]?["SessionEnd"] is JsonArray sessionEnd)
+            foreach (var hookEvent in new[] { "SessionEnd", "PreToolUse" })
             {
-                RemoveOurHook(sessionEnd);
-                if (sessionEnd.Count == 0)
+                if (settings["hooks"]?[hookEvent] is JsonArray list)
                 {
-                    (settings["hooks"] as JsonObject)?.Remove("SessionEnd");
+                    RemoveOurHook(list);
+                    if (list.Count == 0)
+                    {
+                        (settings["hooks"] as JsonObject)?.Remove(hookEvent);
+                    }
                 }
-
-                WriteClaudeSettings(settings);
             }
+
+            WriteClaudeSettings(settings);
 
             return new(true, "Removed PortPilot's Claude Code hook.");
         }
@@ -103,7 +101,64 @@ public static class AgentIntegration
         }
     }
 
-    private static bool IsOurs(JsonObject hook) => hook["command"] is JsonValue v && v.TryGetValue<string>(out var command) && command.Contains("hook session-end", StringComparison.Ordinal);
+    private static bool IsOurs(JsonObject hook) => hook["command"] is JsonValue v && v.TryGetValue<string>(out var command)
+        && (command.Contains("hook session-end", StringComparison.Ordinal) || command.Contains("hook pre-bash", StringComparison.Ordinal));
+
+    private static void AddHook(JsonObject hooks, string hookEvent, string? matcher, string command, int timeout)
+    {
+        // Replace an earlier copy of the same PortPilot hook (e.g. from another install path); leave everything else.
+        var marker = command.Contains("hook pre-bash", StringComparison.Ordinal) ? "hook pre-bash" : "hook session-end";
+        var list = hooks[hookEvent] as JsonArray ?? [];
+        hooks[hookEvent] = list;
+        foreach (var group in list.OfType<JsonObject>().ToList())
+        {
+            if (group["hooks"] is not JsonArray entries)
+            {
+                continue;
+            }
+
+            foreach (var hook in entries.OfType<JsonObject>().Where(h => h["command"] is JsonValue v && v.TryGetValue<string>(out var c) && c.Contains(marker, StringComparison.Ordinal)).ToList())
+            {
+                entries.Remove(hook);
+            }
+
+            if (entries.Count == 0)
+            {
+                list.Remove(group);
+            }
+        }
+
+        var entry = new JsonObject { ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = command, ["timeout"] = timeout }) };
+        if (matcher is not null)
+        {
+            entry["matcher"] = matcher;
+        }
+
+        list.Add((JsonNode)entry);
+    }
+
+    // ═════════════ Claude Code status line ═════════════
+
+    /// <summary>Sets PortPilot as Claude Code's status line, unless another one is already configured.</summary>
+    public static IntegrationResult InstallStatusLine(string cliPath)
+    {
+        try
+        {
+            var settings = ReadClaudeSettings();
+            if (settings["statusLine"]?["command"] is JsonValue existing && existing.TryGetValue<string>(out var current) && !current.Contains("statusline", StringComparison.Ordinal))
+            {
+                return new(true, $"Claude Code already has a status line ({current}), so it was left alone. Add `\"{cliPath}\" statusline` to it to show your project's servers.");
+            }
+
+            settings["statusLine"] = new JsonObject { ["type"] = "command", ["command"] = $"\"{cliPath}\" statusline", ["padding"] = 0, ["refreshInterval"] = 5 };
+            WriteClaudeSettings(settings);
+            return new(true, "Claude Code's status line now shows this project's dev servers and anything left behind.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return new(false, $"Couldn't update {ClaudeSettingsPath}: {ex.Message}");
+        }
+    }
 
     private static string? FindHook(JsonObject settings) =>
         (settings["hooks"]?["SessionEnd"] as JsonArray)?.OfType<JsonObject>()
