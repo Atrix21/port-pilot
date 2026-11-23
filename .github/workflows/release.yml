@@ -81,7 +81,8 @@ jobs:
           version='${{ github.ref_name }}'
           version="${version#v}"
           dotnet test tests/PortPilot.Core.Tests -c Release
-          name="portpilot-$version-${{ matrix.rid }}"
+          # No version in the name, so releases/latest/download/portpilot-linux-x64.tar.gz always works.
+          name="portpilot-${{ matrix.rid }}"
           dotnet publish src/PortPilot.Cli -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
           dotnet publish src/PortPilot.Desktop -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
           cp packaging/linux/install.sh packaging/linux/portpilot.desktop "out/$name/"

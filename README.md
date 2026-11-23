@@ -113,7 +113,7 @@ brew tap atrix21/port-pilot https://github.com/Atrix21/port-pilot
 brew install --cask portpilot
 ```
 
-You get `PortPilot.app`, a native build for Apple silicon or Intel, with `portpilot` on your `PATH`. Alternatively, download `PortPilot-x.y.z-osx-arm64.zip` (or `-osx-x64`) from the release and drag the app to Applications. It's the same app as on Linux, with the same projects, agents, health and logs, and it sits in the menu bar when its window is closed.
+You get `PortPilot.app`, a native build for Apple silicon or Intel, with `portpilot` on your `PATH`. Alternatively, download `PortPilot-osx-arm64.zip` (or `PortPilot-osx-x64.zip`) from the release and drag the app to Applications. It's the same app as on Linux, with the same projects, agents, health and logs, and it sits in the menu bar when its window is closed.
 
 The engine uses `libproc`, the same API as `lsof` and Activity Monitor, so it needs no root. One difference from Linux: macOS doesn't let you see another user's sockets at all, so run `sudo portpilot` to include them. The app is ad-hoc signed but not notarised. The Homebrew cask clears the quarantine flag for you; if you downloaded the zip yourself, run `xattr -dr com.apple.quarantine /Applications/PortPilot.app` once.
 
@@ -149,11 +149,11 @@ The same app, built for Linux: the same design, the same view models, and a Linu
 </table>
 
 ```sh
-curl -L https://github.com/Atrix21/port-pilot/releases/latest/download/portpilot-<version>-linux-x64.tar.gz | tar xz
-./portpilot-<version>-linux-x64/install.sh     # installs to ~/.local, no root; --uninstall removes it
+curl -L https://github.com/Atrix21/port-pilot/releases/latest/download/portpilot-linux-x64.tar.gz | tar xz
+./portpilot-linux-x64/install.sh     # installs to ~/.local, no root; --uninstall removes it
 ```
 
-Builds are available for `linux-x64` and `linux-arm64`. Both are native, so there's no .NET runtime to install.
+Builds are available for `linux-x64` and `linux-arm64` (on ARM, replace `x64` with `arm64` in both lines). Both are native, so there's no .NET runtime to install.
 
 - **The desktop app** (`portpilot-desktop`, or *PortPilot* in your app launcher) has everything the Windows app does: live table, search, inspector, terminate with confirmation, tray icon, notifications when a dev server starts, start on login, and light and dark themes. The tray needs a desktop that shows tray icons (KDE, or GNOME with the AppIndicator extension, which Ubuntu ships). Without one, closing the window quits.
 - **The terminal app** (`portpilot`) is a single ~3 MB binary for SSH sessions and scripts:

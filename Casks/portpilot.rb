@@ -8,7 +8,7 @@ cask "portpilot" do
   sha256 arm:   "0000000000000000000000000000000000000000000000000000000000000000",
          intel: "0000000000000000000000000000000000000000000000000000000000000000"
 
-  url "https://github.com/Atrix21/port-pilot/releases/download/v#{version}/PortPilot-#{version}-osx-#{arch}.zip"
+  url "https://github.com/Atrix21/port-pilot/releases/download/v#{version}/PortPilot-osx-#{arch}.zip"
   name "PortPilot"
   desc "See what's listening on your ports, which project and agent it belongs to, and stop it"
   homepage "https://github.com/Atrix21/port-pilot"

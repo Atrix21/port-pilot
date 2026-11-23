@@ -28,5 +28,5 @@ iconutil -c icns "$iconset" -o "$app/Contents/Resources/PortPilot.icns"
 # Ad-hoc signature: Apple silicon refuses to run unsigned code. (Not notarised; see README.)
 codesign --force --deep --sign - "$app"
 
-ditto -c -k --keepParent "$app" "$out/PortPilot-$version-$rid.zip"
-echo "Built $out/PortPilot-$version-$rid.zip"
+ditto -c -k --keepParent "$app" "$out/PortPilot-$rid.zip"
+echo "Built $out/PortPilot-$rid.zip"
