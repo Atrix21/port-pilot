@@ -168,7 +168,14 @@ public sealed class LinuxProcessTests
         using var child = Sleep("120");
         try
         {
+            // The child may still be between fork and exec for a moment.
             var details = LinuxProcessInfoProvider.Inspect(child.Id);
+            for (var i = 0; i < 40 && details.CommandLine != "sleep 120"; i++)
+            {
+                Thread.Sleep(25);
+                details = LinuxProcessInfoProvider.Inspect(child.Id);
+            }
+
             Assert.AreEqual("sleep", details.ImageName);
             Assert.AreEqual("sleep 120", details.CommandLine);
             Assert.AreEqual(Environment.ProcessId, details.ParentProcessId);

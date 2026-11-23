@@ -17,6 +17,7 @@
   <a href="https://github.com/Atrix21/port-pilot/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Atrix21/port-pilot/ci.yml?branch=main&style=flat-square&label=tests&labelColor=0b0b0c" /></a>
   <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0b0b0c?style=flat-square&logo=windows11&logoColor=white" />
   <img alt="Linux" src="https://img.shields.io/badge/Linux-x64%20%7C%20arm64-0b0b0c?style=flat-square&logo=linux&logoColor=white" />
+  <img alt="macOS" src="https://img.shields.io/badge/macOS-arm64%20%7C%20x64-0b0b0c?style=flat-square&logo=apple&logoColor=white" />
   <img alt=".NET 10" src="https://img.shields.io/badge/.NET-10-0b0b0c?style=flat-square&logo=dotnet&logoColor=white" />
   <img alt="Electron" src="https://img.shields.io/badge/Electron-no-e9a35c?style=flat-square" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-0b0b0c?style=flat-square" />
@@ -104,6 +105,33 @@ cd port-pilot
 ```
 
 Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`). It takes a couple of minutes, most of which is the installer compressing itself.
+
+## On macOS
+
+```sh
+brew tap atrix21/port-pilot https://github.com/Atrix21/port-pilot
+brew install --cask portpilot
+```
+
+You get `PortPilot.app`, a native build for Apple silicon or Intel, with `portpilot` on your `PATH`. Alternatively, download `PortPilot-x.y.z-osx-arm64.zip` (or `-osx-x64`) from the release and drag the app to Applications. It's the same app as on Linux, with the same projects, agents, health and logs, and it sits in the menu bar when its window is closed.
+
+The engine uses `libproc`, the same API as `lsof` and Activity Monitor, so it needs no root. One difference from Linux: macOS doesn't let you see another user's sockets at all, so run `sudo portpilot` to include them. The app is ad-hoc signed but not notarised. The Homebrew cask clears the quarantine flag for you; if you downloaded the zip yourself, run `xattr -dr com.apple.quarantine /Applications/PortPilot.app` once.
+
+## In your editor
+
+| Editor | Install |
+| --- | --- |
+| **VS Code, Cursor, Windsurf, VSCodium** | `portpilot-<platform>.vsix` from the release (*Extensions → … → Install from VSIX*), or search *PortPilot* in the Marketplace or Open VSX |
+| **IntelliJ IDEA, WebStorm, PyCharm, GoLand, Rider, …** | `portpilot-jetbrains-x.y.z.zip` from the release (*Settings → Plugins → ⚙ → Install Plugin from Disk*) |
+
+Both are thin layers over the same engine:
+
+- **A Ports view** (VS Code) or **tool window** (JetBrains) with the open project's ports, grouped by repository and branch, tagged with the agent that started them, and *left behind* ones first.
+- **Status bar:** this project's ports, plus a warning count for leftovers.
+- **Per port:** open in browser, show output, check health, copy the URL or PID, and stop it (it asks first). *Clean up* stops everything ended sessions left running.
+- **VS Code only:** an `EADDRINUSE` / "address already in use :3000" line in the terminal becomes a link to *who is on :3000*, and *Find a Free Port* checks candidates by binding them. The MCP server is offered to agents inside VS Code (Copilot agent mode), so they can ask before starting a second dev server.
+
+Each VS Code build includes the native `portpilot` binary, so nothing else needs installing. The JetBrains plugin uses an installed `portpilot` (from any of the downloads above), or a path you set in *Settings → Tools → PortPilot*.
 
 ## On Linux
 
@@ -272,8 +300,10 @@ src/PortPilot.Core          The engine. No UI. Port tables, process inspection, 
                             change tracking, filtering, settings, logging.
 src/PortPilot.Presentation  View models and MVVM plumbing shared by both desktop apps. No UI framework.
 src/PortPilot.App           The Windows app (WPF). A hand-built design system and Windows integration.
-src/PortPilot.Desktop         The Linux app (Avalonia). The same design system, ported, plus Linux integration.
-src/PortPilot.Cli           The terminal app (Linux and Windows). Native AOT, live view and commands.
+src/PortPilot.Desktop       The Linux and macOS app (Avalonia). The same design system, ported, plus Linux and macOS integration.
+src/PortPilot.Cli           The terminal app (Linux, macOS, Windows). Native AOT, live view, commands, MCP server.
+extensions/vscode           The VS Code extension (TypeScript), over the terminal app's JSON and MCP server.
+extensions/jetbrains        The JetBrains plugin (Kotlin), same idea.
 tests/PortPilot.Core.Tests  69 tests. They open real sockets, kill real (consenting) processes, and impersonate Claude.
 tools/PortPilot.IconGen     Draws the app icon in code, because the icon is also code.
 installer/PortPilot.iss     The Inno Setup script.
@@ -289,6 +319,7 @@ installer/PortPilot.iss     The Inno Setup script.
   - **Project:** the working directory (`/proc/[pid]/cwd`) is matched to the nearest `.git`, and the result is cached per directory. Linked worktrees are named after their main checkout. The branch is re-read from `HEAD`, which is one small file.
   - **Agent:** found by walking `/proc/[pid]/stat` up the chain of parent processes, done only when a process is first seen.
   - **Leftovers:** a process counts as left behind when its recorded agent no longer exists with the same start time.
+- **On macOS**, discovery walks each process's descriptors with libproc (`proc_pidinfo(PROC_PIDLISTFDS)`, then `proc_pidfdinfo(PROC_PIDFDSOCKETINFO)`), so the owner comes with the socket and no inode join is needed. Command lines come from `sysctl(KERN_PROCARGS2)`, and working directories from `PROC_PIDVNODEPATHINFO`.
 - **The Linux app** shares every view model with the Windows app through `PortPilot.Presentation`. Only the views and the platform services are its own:
   - `xdg-open` for links, and the FileManager1 D-Bus interface to show a file in the file manager
   - XDG autostart, `notify-send` notifications and a StatusNotifierItem tray icon

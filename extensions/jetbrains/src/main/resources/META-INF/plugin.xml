@@ -1,0 +1,26 @@
+<idea-plugin>
+    <id>dev.portpilot</id>
+    <name>PortPilot</name>
+    <vendor url="https://github.com/Atrix21/port-pilot">PortPilot</vendor>
+    <description><![CDATA[
+        <p><b>Something is already running on port 3000.</b> PortPilot tells you what, which of your projects it belongs to,
+        which coding agent started it (Claude Code, Codex, Gemini CLI, Aider, …), whether it is healthy, and lets you stop it.</p>
+        <ul>
+            <li>A <b>PortPilot</b> tool window with this project's ports, or every port on the machine.</li>
+            <li>Processes that an ended agent session <b>left behind</b>, with one-click clean-up.</li>
+            <li>Open in browser, show output, check health, copy URL or PID, stop the process (it asks first).</li>
+            <li>A status-bar widget with this project's ports and leftovers.</li>
+        </ul>
+        <p>Uses the <code>portpilot</code> terminal app (Linux, macOS, Windows) from
+        <a href="https://github.com/Atrix21/port-pilot">github.com/Atrix21/port-pilot</a>.</p>
+    ]]></description>
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="PortPilot" anchor="bottom" icon="/icons/portpilot.svg" factoryClass="dev.portpilot.PortPilotToolWindowFactory" />
+        <statusBarWidgetFactory id="dev.portpilot.status" implementation="dev.portpilot.PortPilotStatusWidgetFactory" order="first" />
+        <applicationService serviceImplementation="dev.portpilot.PortPilotSettings" />
+        <applicationConfigurable parentId="tools" instance="dev.portpilot.PortPilotConfigurable" id="dev.portpilot.settings" displayName="PortPilot" />
+        <notificationGroup id="PortPilot" displayType="BALLOON" />
+    </extensions>
+</idea-plugin>
