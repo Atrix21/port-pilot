@@ -54,6 +54,15 @@ public sealed class ProjectGroupViewModel(string name) : ObservableObject
 
     public bool HasAgent => _agentCount > 0;
 
+    private string _agentName = "Agent";
+
+    /// <summary>The short name of the agent working here, e.g. "Claude", or "2 agents".</summary>
+    public string AgentName
+    {
+        get => _agentName;
+        private set => Set(ref _agentName, value);
+    }
+
     /// <summary>Processes still running after the agent session that started them ended.</summary>
     public int OrphanCount
     {
@@ -94,6 +103,8 @@ public sealed class ProjectGroupViewModel(string name) : ObservableObject
         PortCount = rows.Select(r => (r.Port, r.ProtocolText)).Distinct().Count();
         ProcessCount = rows.Select(r => r.Pid).Distinct().Count();
         AgentCount = rows.Where(r => r.Agent is { IsRunning: true }).Select(r => r.Pid).Distinct().Count();
+        var agents = rows.Where(r => r.Agent is { IsRunning: true }).Select(r => r.AgentShortName).Distinct().ToList();
+        AgentName = agents.Count == 1 ? agents[0]! : $"{agents.Count} agents";
         OrphanCount = rows.Where(r => r.IsOrphaned).Select(r => r.Pid).Distinct().Count();
         PortsText = string.Join(" ", rows.Select(r => r.Port).Distinct().Order().Take(5).Select(p => ":" + p.ToString(CultureInfo.InvariantCulture)))
             + (rows.Select(r => r.Port).Distinct().Count() > 5 ? " …" : "");

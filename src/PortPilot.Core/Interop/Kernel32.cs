@@ -9,6 +9,7 @@ namespace PortPilot.Core.Interop;
 internal static unsafe partial class Kernel32
 {
     public const uint PROCESS_TERMINATE = 0x0001;
+    public const uint PROCESS_VM_READ = 0x0010;
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
     public const uint SYNCHRONIZE = 0x00100000;
 
@@ -67,6 +68,14 @@ internal static unsafe partial class Kernel32
     public static partial bool IsProcessCritical(SafeProcessHandle hProcess, [MarshalAs(UnmanagedType.Bool)] out bool critical);
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool ReadProcessMemory(SafeProcessHandle hProcess, nint lpBaseAddress, void* lpBuffer, nuint nSize, out nuint lpNumberOfBytesRead);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWow64Process(SafeProcessHandle hProcess, [MarshalAs(UnmanagedType.Bool)] out bool wow64Process);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
     public static partial SafeFileHandle CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
@@ -80,7 +89,19 @@ internal static unsafe partial class Kernel32
 
 internal static unsafe partial class NtDll
 {
+    public const int ProcessBasicInformation = 0;
     public const int ProcessCommandLineInformation = 60;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROCESS_BASIC_INFORMATION
+    {
+        public nint ExitStatus;
+        public nint PebBaseAddress;
+        public nint AffinityMask;
+        public nint BasePriority;
+        public nint UniqueProcessId;
+        public nint InheritedFromUniqueProcessId;
+    }
     public const int STATUS_INFO_LENGTH_MISMATCH = unchecked((int)0xC0000004);
 
     [StructLayout(LayoutKind.Sequential)]

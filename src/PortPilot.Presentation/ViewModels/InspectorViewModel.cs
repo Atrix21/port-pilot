@@ -1,6 +1,8 @@
 using System.Globalization;
 using PortPilot.App.Mvvm;
 using PortPilot.App.Services;
+using System.Windows.Input;
+using PortPilot.Core.Diagnostics;
 using PortPilot.Core.Processes;
 
 namespace PortPilot.App.ViewModels;
@@ -9,8 +11,49 @@ namespace PortPilot.App.ViewModels;
 /// Details for the selected row. Expensive lookups (version resources, termination rights) run in the
 /// background and are discarded if the selection changes before they finish.
 /// </summary>
-public sealed class InspectorViewModel(IProcessTerminator terminator) : ObservableObject
+public sealed class InspectorViewModel : ObservableObject
 {
+    private readonly IProcessTerminator _terminator;
+    private HealthResult? _health;
+    private bool _isCheckingHealth;
+    private LogTail? _logs;
+    private int _healthGeneration;
+
+    public InspectorViewModel(IProcessTerminator terminator)
+    {
+        _terminator = terminator;
+        RefreshHealthCommand = new RelayCommand(() => _ = LoadHealthAsync(_row, ++_healthGeneration));
+        RefreshLogsCommand = new RelayCommand(() => _ = LoadLogsAsync(_row, _loadGeneration));
+    }
+
+    public ICommand RefreshHealthCommand { get; }
+
+    public ICommand RefreshLogsCommand { get; }
+
+    // ── Health ──
+    public bool CanCheckHealth => _row is { IsTcp: true, IsListening: true, IsClosed: false };
+
+    public bool IsCheckingHealth
+    {
+        get => _isCheckingHealth;
+        private set => Set(ref _isCheckingHealth, value);
+    }
+
+    public string HealthText => _isCheckingHealth && _health is null ? "Checking…" : _health?.Summary ?? "—";
+
+    public bool IsHealthy => _health?.State is HealthState.Healthy or HealthState.Accepting;
+
+    public bool IsUnhealthy => _health?.State is HealthState.Erroring or HealthState.Unreachable;
+
+    // ── Output ──
+    public bool HasLogs => _logs is { IsAvailable: true, Lines.Count: > 0 };
+
+    public string LogText => _logs is { IsAvailable: true } l ? string.Join(Environment.NewLine, l.Lines) : "";
+
+    public string? LogSource => _logs?.Source;
+
+    public string? LogUnavailable => _logs is { IsAvailable: false } l ? l.Unavailable : _logs is { Lines.Count: 0 } ? "Nothing written yet." : null;
+
     private PortRowViewModel? _row;
     private IReadOnlyList<PortRowViewModel> _siblings = [];
     private ExecutableMetadata _metadata = ExecutableMetadata.Empty;
@@ -84,8 +127,16 @@ public sealed class InspectorViewModel(IProcessTerminator terminator) : Observab
     public void Show(PortRowViewModel? row, IEnumerable<PortRowViewModel> allRows)
     {
         var changedProcess = row?.Pid != _row?.Pid || row?.StartTime != _row?.StartTime;
+        var changedRow = !ReferenceEquals(row, _row);
         Row = row;
         Refresh(allRows, DateTimeOffset.Now);
+
+        // Health is per port, so it reloads whenever the selected row changes.
+        if (changedRow && !changedProcess)
+        {
+            _health = null;
+            _ = LoadHealthAsync(row, ++_healthGeneration);
+        }
 
         if (row is null || !changedProcess)
         {
@@ -94,8 +145,14 @@ public sealed class InspectorViewModel(IProcessTerminator terminator) : Observab
 
         _metadata = ExecutableMetadata.Empty;
         Access = null;
+        _health = null;
+        _logs = null;
+        OnHealthChanged();
+        OnLogsChanged();
         OnPropertiesChanged(nameof(Description), nameof(Company), nameof(Version), nameof(HasPublisher), nameof(PublisherText));
         _ = LoadAsync(row, ++_loadGeneration);
+        _ = LoadHealthAsync(row, ++_healthGeneration);
+        _ = LoadLogsAsync(row, _loadGeneration);
     }
 
     /// <summary>Recomputes time-dependent and sibling information after a refresh.</summary>
@@ -124,7 +181,7 @@ public sealed class InspectorViewModel(IProcessTerminator terminator) : Observab
 
     private async Task LoadAsync(PortRowViewModel row, int generation)
     {
-        var (metadata, access) = await Task.Run(() => (ExecutableMetadata.Read(row.ExecutablePath), terminator.ProbeAccess(row.Pid)));
+        var (metadata, access) = await Task.Run(() => (ExecutableMetadata.Read(row.ExecutablePath), _terminator.ProbeAccess(row.Pid)));
         if (generation != _loadGeneration)
         {
             return;
@@ -134,6 +191,50 @@ public sealed class InspectorViewModel(IProcessTerminator terminator) : Observab
         Access = access;
         OnPropertiesChanged(nameof(Description), nameof(Company), nameof(Version), nameof(HasPublisher), nameof(PublisherText));
     }
+
+    private async Task LoadHealthAsync(PortRowViewModel? row, int generation)
+    {
+        if (row is null || !CanCheckHealth)
+        {
+            OnHealthChanged();
+            return;
+        }
+
+        IsCheckingHealth = true;
+        OnHealthChanged();
+        var result = await Task.Run(() => HealthProbe.CheckAsync(row.Entry));
+        if (generation != _healthGeneration)
+        {
+            return;
+        }
+
+        _health = result;
+        IsCheckingHealth = false;
+        OnHealthChanged();
+    }
+
+    private async Task LoadLogsAsync(PortRowViewModel? row, int generation)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        var logs = await Task.Run(() => ProcessLogs.Read(row.Pid, 60));
+        if (generation != _loadGeneration)
+        {
+            return;
+        }
+
+        _logs = logs;
+        OnLogsChanged();
+    }
+
+    private void OnHealthChanged() =>
+        OnPropertiesChanged(nameof(CanCheckHealth), nameof(HealthText), nameof(IsHealthy), nameof(IsUnhealthy), nameof(IsCheckingHealth));
+
+    private void OnLogsChanged() =>
+        OnPropertiesChanged(nameof(HasLogs), nameof(LogText), nameof(LogSource), nameof(LogUnavailable));
 
     private string FormatStart(DateTimeOffset start)
     {

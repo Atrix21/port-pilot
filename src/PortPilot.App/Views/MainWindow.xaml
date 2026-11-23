@@ -121,10 +121,30 @@
                     <ui:ProcessIcon NameText="{Binding ProcessName}" Path="{Binding ExecutablePath}" />
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock Style="{StaticResource Text.Body}" Text="{Binding ProcessName}" />
-                        <TextBlock Margin="0,2,0,0"
-                                   FontFamily="{StaticResource Font.Mono}"
-                                   Style="{StaticResource Text.Micro}"
-                                   Text="{Binding ProcessDetail}" />
+                        <Grid Margin="0,2,0,0" ClipToBounds="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource AgentTag}" ToolTip="{Binding AgentText}" Visibility="{Binding HasAgent, Converter={StaticResource VisibleWhen}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Icon Margin="0,0,4,0" VerticalAlignment="Center" Data="{StaticResource Icon.Agent}" Size="11" />
+                                    <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="{Binding AgentTagText}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource ProjectTag}" ToolTip="{Binding ProjectTooltip}" Visibility="{Binding HasProject, Converter={StaticResource VisibleWhen}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:Icon Margin="0,0,4,0" VerticalAlignment="Center" Data="{StaticResource Icon.Branch}" Foreground="{DynamicResource Text.Tertiary}" Size="11" />
+                                    <TextBlock MaxWidth="180" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource Text.Secondary}" Text="{Binding ProjectText}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{StaticResource Font.Mono}"
+                                       Style="{StaticResource Text.Micro}"
+                                       Text="{Binding ProcessDetail}" />
+                        </Grid>
                     </StackPanel>
                 </Grid>
 
@@ -164,7 +184,7 @@
                             </Ellipse>
                             <Ellipse Style="{StaticResource StatusDot}" />
                         </Grid>
-                        <TextBlock Margin="9,0,0,0" VerticalAlignment="Center" Style="{StaticResource StatusText}" Text="{Binding StatusText}" />
+                        <TextBlock Margin="9,0,0,0" VerticalAlignment="Center" Style="{StaticResource StatusText}" Text="{Binding StatusText}" ToolTip="{Binding AgentText}" />
                     </StackPanel>
                     <StackPanel x:Name="Actions"
                                 HorizontalAlignment="Right"
@@ -272,6 +292,7 @@
     <Grid x:Name="Root" Background="{DynamicResource Bg.Window}">
         <Grid.RowDefinitions>
             <RowDefinition Height="44" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -576,8 +597,106 @@
             </StackPanel>
         </Grid>
 
+        <!-- ═════════════ Projects ═════════════ -->
+        <Grid Grid.Row="3" Margin="28,0,28,14" Visibility="{Binding HasProjects, Converter={StaticResource VisibleWhen}}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <ItemsControl Focusable="False" ItemsSource="{Binding Projects}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ProjectGroupViewModel}">
+                            <Button x:Name="Card"
+                                    MinWidth="150"
+                                    Margin="0,0,8,0"
+                                    Padding="12,8,12,9"
+                                    HorizontalContentAlignment="Stretch"
+                                    Command="{Binding Data.ShowProjectCommand, Source={StaticResource Vm}}"
+                                    CommandParameter="{Binding}"
+                                    Cursor="Hand"
+                                    ToolTip="{Binding PortsText}"
+                                    ToolTipService.InitialShowDelay="400">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bg" Padding="{TemplateBinding Padding}" Background="{DynamicResource Fill.Subtle}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1" CornerRadius="10">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Fill.Hover}" />
+                                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+                                            </Trigger>
+                                            <DataTrigger Binding="{Binding HasOrphans}" Value="True">
+                                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Caution}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Accent.Soft}" />
+                                                <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Accent}" />
+                                            </DataTrigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:Icon Margin="0,0,7,0" VerticalAlignment="Center" Data="{StaticResource Icon.Folder}" Foreground="{DynamicResource Text.Tertiary}" Size="14" />
+                                        <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource Text.Body}" Text="{Binding Name}" />
+                                        <Border Margin="7,0,0,0" Padding="5,0,6,1" VerticalAlignment="Center" Background="{DynamicResource Accent.Soft}" CornerRadius="5" Visibility="{Binding HasAgent, Converter={StaticResource VisibleWhen}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:Icon Margin="0,0,4,0" VerticalAlignment="Center" Data="{StaticResource Icon.Agent}" Foreground="{DynamicResource Accent}" Size="12" />
+                                                <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" Text="{Binding AgentName}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,4,0,0" Orientation="Horizontal" Visibility="{Binding HasBranches, Converter={StaticResource VisibleWhen}}">
+                                        <ui:Icon Margin="0,0,5,0" VerticalAlignment="Center" Data="{StaticResource Icon.Branch}" Foreground="{DynamicResource Text.Tertiary}" Size="12" />
+                                        <TextBlock MaxWidth="220" VerticalAlignment="Center" FontFamily="{StaticResource Font.Mono}" Style="{StaticResource Text.Micro}" Text="{Binding Branches}" />
+                                    </StackPanel>
+                                    <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
+                                        <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Micro}" Text="{Binding Summary}" />
+                                        <Button Margin="10,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding Data.CleanUpOrphansCommand, Source={StaticResource Vm}}"
+                                                CommandParameter="{Binding}"
+                                                Content="{Binding OrphanText}"
+                                                ContentStringFormat="Clean up {0}"
+                                                FontSize="{StaticResource Type.Micro}"
+                                                Foreground="{DynamicResource Caution}"
+                                                Style="{StaticResource Button.Link}"
+                                                ToolTip="Stop what ended agent sessions left running here"
+                                                Visibility="{Binding HasOrphans, Converter={StaticResource VisibleWhen}}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding HasOrphans, Converter={StaticResource VisibleWhen}}">
+                <ToggleButton Content="{Binding OrphanCount}"
+                              ContentStringFormat="Left behind · {0}"
+                              IsChecked="{Binding OrphansOnly}"
+                              Style="{StaticResource Chip}"
+                              ToolTip="{Binding OrphanText}"
+                              ui:Ui.Icon="{StaticResource Icon.Agent}" />
+                <Button Margin="8,0,0,0"
+                        Command="{Binding CleanUpAllOrphansCommand}"
+                        Style="{StaticResource Button.Secondary}"
+                        ToolTip="Stop everything ended agent sessions left running"
+                        ui:Ui.Icon="{StaticResource Icon.Broom}"
+                        ui:Ui.IconSize="15">
+                    <TextBlock FontSize="{StaticResource Type.Caption}" Text="Clean up all" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
         <!-- ═════════════ Content ═════════════ -->
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -732,7 +851,7 @@
         </Grid>
 
         <!-- ═════════════ Status bar ═════════════ -->
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="5">
             <Border VerticalAlignment="Top" Style="{StaticResource Divider}" />
             <Grid Margin="20,0,12,0">
                 <Grid.ColumnDefinitions>
@@ -768,7 +887,7 @@
 
         <!-- ═════════════ Toasts ═════════════ -->
         <ItemsControl Grid.Row="0"
-                      Grid.RowSpan="5"
+                      Grid.RowSpan="6"
                       Margin="0,0,0,48"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom"
@@ -849,7 +968,7 @@
         <!-- ═════════════ Sheets & dialogs ═════════════ -->
         <Grid x:Name="SettingsLayer"
               Grid.Row="1"
-              Grid.RowSpan="4"
+              Grid.RowSpan="5"
               ui:Reveal.IsShown="{Binding IsSettingsOpen}"
               ui:Reveal.MotionTarget="{Binding ElementName=SettingsSheet}"
               ui:Reveal.Offset="10"
@@ -860,7 +979,7 @@
 
         <Grid x:Name="ShortcutsLayer"
               Grid.Row="1"
-              Grid.RowSpan="4"
+              Grid.RowSpan="5"
               ui:Reveal.IsShown="{Binding IsShortcutsOpen}"
               ui:Reveal.MotionTarget="{Binding ElementName=ShortcutsSheet}"
               ui:Reveal.Offset="10"
@@ -871,7 +990,7 @@
 
         <Grid x:Name="DialogLayer"
               Grid.Row="0"
-              Grid.RowSpan="5"
+              Grid.RowSpan="6"
               ui:Reveal.IsShown="{Binding IsDialogOpen}"
               ui:Reveal.MotionTarget="{Binding ElementName=DialogCard}"
               ui:Reveal.Scale="0.96">
@@ -924,7 +1043,7 @@
         <!-- Cross-fade snapshot used for theme transitions -->
         <Image x:Name="ThemeSnapshot"
                Grid.Row="0"
-               Grid.RowSpan="5"
+               Grid.RowSpan="6"
                IsHitTestVisible="False"
                Stretch="Fill"
                Visibility="Collapsed" />

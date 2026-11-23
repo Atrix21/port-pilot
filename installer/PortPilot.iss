@@ -12,6 +12,7 @@
 #endif
 
 [Setup]
+ChangesEnvironment=yes
 AppId={{6E0C2B6B-5C7A-4F3E-9A0B-0F6B2D4C8A11}
 AppName={#AppName}
 AppVersion={#AppVersion}
@@ -48,6 +49,7 @@ Name: "startup"; Description: "Start PortPilot when I sign in to Windows"; Group
 
 [Files]
 Source: "{#PublishDir}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PublishDir}\cli\portpilot.exe"; DestDir: "{app}\cli"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -56,6 +58,8 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 [Registry]
 ; Same value the app writes from Settings → Start with Windows.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#AppName}"; ValueData: """{app}\{#AppExe}"" --minimized"; Tasks: startup
+; Put the terminal app (portpilot.exe) on the user's PATH.
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\cli"; Check: NeedsAddPath(ExpandConstant('{app}\cli'))
 ; Always remove the startup entry on uninstall, even if it was enabled later from inside the app.
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "{#AppName}"; Flags: uninsdeletevalue
 
@@ -65,3 +69,34 @@ Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags
 [UninstallDelete]
 ; Logs are disposable. Settings in %APPDATA%\PortPilot are kept so a reinstall remembers preferences.
 Type: filesandordirs; Name: "{localappdata}\PortPilot\logs"
+
+[Code]
+function NeedsAddPath(Dir: string): Boolean;
+var
+  Path: string;
+begin
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', Path) then
+  begin
+    Result := True;
+    exit;
+  end;
+  Result := Pos(';' + Uppercase(Dir) + ';', ';' + Uppercase(Path) + ';') = 0;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Path, Dir: string;
+  P: Integer;
+begin
+  if CurUninstallStep <> usPostUninstall then
+    exit;
+  if not RegQueryStringValue(HKCU, 'Environment', 'Path', Path) then
+    exit;
+  Dir := ';' + ExpandConstant('{app}\cli');
+  P := Pos(Uppercase(Dir), Uppercase(Path));
+  if P > 0 then
+  begin
+    Delete(Path, P, Length(Dir));
+    RegWriteExpandStringValue(HKCU, 'Environment', 'Path', Path);
+  end;
+end;

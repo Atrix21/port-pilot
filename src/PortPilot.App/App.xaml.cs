@@ -66,6 +66,7 @@ public partial class App : Application, IAppShell
         var store = new JsonSettingsStore(settingsPath, _logs.CreateLogger<JsonSettingsStore>());
         var settings = Options.IsScreenshotRun ? new AppSettings() : store.Load();
 
+        PortPilot.Core.Processes.AgentDetector.Configure(settings.CustomAgentNames);
         var theme = new ThemeService(Resources);
         theme.Apply(settings.Theme, animate: false);
 
@@ -81,7 +82,7 @@ public partial class App : Application, IAppShell
         {
             scanner = new PortScanner(
                 new IpHelperPortTableReader(_logs.CreateLogger<IpHelperPortTableReader>()),
-                new ProcessInfoProvider(logger: _logs.CreateLogger<ProcessInfoProvider>()),
+                new ProcessInfoProvider(logger: _logs.CreateLogger<ProcessInfoProvider>(), lineagePath: AgentLineage.DefaultPath),
                 logger: _logs.CreateLogger<PortScanner>());
             terminator = new ProcessTerminator(_logs.CreateLogger<ProcessTerminator>());
         }

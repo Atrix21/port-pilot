@@ -105,6 +105,42 @@
 
                         <Border Margin="0,22,0,20" Style="{StaticResource Divider}" />
 
+                        <!-- Coding agents -->
+                        <TextBlock Style="{StaticResource Section}" Text="Coding agents" />
+                        <TextBlock Style="{StaticResource RowCaption}" Text="{Binding BuiltInAgentsText, StringFormat='PortPilot recognises {0}.'}" />
+                        <TextBlock Margin="0,8,0,0" Foreground="{DynamicResource Caution}" Style="{StaticResource RowCaption}" Text="{Binding IntegrationUnavailableText}" Visibility="{Binding CanIntegrate, Converter={StaticResource HiddenWhen}}" />
+                        <CheckBox IsChecked="{Binding HookInstalled}" IsEnabled="{Binding CanIntegrate}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Record Claude Code sessions" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="A session-end hook records what each session started, so leftovers are recognised even if PortPilot wasn't running." />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding HookStopsLeftovers}" IsEnabled="{Binding CanIntegrate}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Stop leftovers when a session ends" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="The hook also stops anything the session left holding a port." />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding WatcherInstalled}" IsEnabled="{Binding CanIntegrate}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Background watcher" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="A tiny scheduled task that starts at sign-in and records every agent session, for agents without hooks." />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding McpRegistered}" IsEnabled="{Binding CanIntegrate}" Style="{StaticResource SettingSwitch}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource RowTitle}" Text="Let Claude ask PortPilot (MCP)" />
+                                <TextBlock Style="{StaticResource RowCaption}" Text="Claude Code can check ports, project status, health and logs, and find free ports, instead of guessing." />
+                            </StackPanel>
+                        </CheckBox>
+                        <TextBlock Margin="0,14,0,0" Style="{StaticResource RowTitle}" Text="Other agents" />
+                        <TextBlock Style="{StaticResource RowCaption}" Text="Executable names to recognise as agents too, separated by commas." />
+                        <Border Margin="0,8,0,0" Padding="10,6" Background="{DynamicResource Bg.Input}" BorderBrush="{DynamicResource Stroke.Default}" BorderThickness="1" CornerRadius="8">
+                            <TextBox Style="{StaticResource TextBox.Bare}" Text="{Binding CustomAgentsText, UpdateSourceTrigger=LostFocus}" />
+                        </Border>
+                        <TextBlock Margin="0,10,0,0" Foreground="{DynamicResource Text.Secondary}" Style="{StaticResource RowCaption}" Text="{Binding IntegrationMessage}" Visibility="{Binding IntegrationMessage, Converter={StaticResource VisibleWhen}}" />
+                        <Border Margin="0,22,0,20" Style="{StaticResource Divider}" />
+
                         <!-- Window -->
                         <TextBlock Style="{StaticResource Section}" Text="Startup and tray" />
                         <CheckBox Margin="0,10,0,0" IsChecked="{Binding StartWithWindows}" Style="{StaticResource SettingSwitch}">

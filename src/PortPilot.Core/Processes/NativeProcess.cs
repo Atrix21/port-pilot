@@ -91,6 +91,60 @@ internal static unsafe class NativeProcess
         return null;
     }
 
+    /// <summary>
+    /// Reads a process's current directory from its PEB (RTL_USER_PROCESS_PARAMETERS.CurrentDirectory).
+    /// Needs PROCESS_VM_READ, so it works for the user's own processes; 64-bit PortPilot, 64-bit targets only.
+    /// </summary>
+    public static string? GetCurrentDirectory(int pid)
+    {
+        if (!Environment.Is64BitProcess)
+        {
+            return null;
+        }
+
+        var open = Open(pid, Kernel32.PROCESS_QUERY_LIMITED_INFORMATION | Kernel32.PROCESS_VM_READ);
+        if (!open.Success)
+        {
+            return null;
+        }
+
+        using var handle = open.Handle!;
+        if (Kernel32.IsWow64Process(handle, out var wow64) && wow64)
+        {
+            return null;
+        }
+
+        NtDll.PROCESS_BASIC_INFORMATION info;
+        if (NtDll.NtQueryInformationProcess(handle, NtDll.ProcessBasicInformation, &info, sizeof(NtDll.PROCESS_BASIC_INFORMATION), out _) < 0 || info.PebBaseAddress == 0)
+        {
+            return null;
+        }
+
+        // x64 / ARM64 layouts: PEB.ProcessParameters at 0x20; CurrentDirectory.DosPath at 0x38.
+        nint parameters;
+        if (!Kernel32.ReadProcessMemory(handle, info.PebBaseAddress + 0x20, &parameters, (nuint)sizeof(nint), out _) || parameters == 0)
+        {
+            return null;
+        }
+
+        NtDll.UNICODE_STRING path;
+        if (!Kernel32.ReadProcessMemory(handle, parameters + 0x38, &path, (nuint)sizeof(NtDll.UNICODE_STRING), out _) || path.Length == 0 || path.Buffer is null)
+        {
+            return null;
+        }
+
+        var chars = new char[path.Length / 2];
+        fixed (char* buffer = chars)
+        {
+            if (!Kernel32.ReadProcessMemory(handle, (nint)path.Buffer, buffer, path.Length, out _))
+            {
+                return null;
+            }
+        }
+
+        return new string(chars).TrimEnd('\\') is { Length: > 0 } dir && dir[^1] == ':' ? dir + "\\" : new string(chars).TrimEnd('\\');
+    }
+
     public static bool? IsCritical(SafeProcessHandle handle) =>
         Kernel32.IsProcessCritical(handle, out var critical) ? critical : null;
 

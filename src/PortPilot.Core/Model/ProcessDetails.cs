@@ -44,6 +44,12 @@ public sealed record ProcessDetails
     /// <summary>The coding agent session (such as Claude Code) that started this process, if any.</summary>
     public AgentSession? Agent { get; init; }
 
+    /// <summary>
+    /// The process outlived whatever started it: re-parented to init on Linux, or its parent PID is dead
+    /// on Windows. Together with a project, this suggests a forgotten dev server even without agent history.
+    /// </summary>
+    public bool IsDetached { get; init; }
+
     /// <summary>Started by an agent session that has since ended, and still running.</summary>
     public bool IsOrphaned => Agent is { IsRunning: false };
 

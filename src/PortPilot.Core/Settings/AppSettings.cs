@@ -54,6 +54,13 @@ public sealed record AppSettings
 
     public bool HasShownTrayHint { get; init; }
 
+    /// <summary>Extra agent executables to recognise, on top of the built-in list (Claude Code, Codex, Gemini CLI, Aider, …).</summary>
+    /// <remarks>Comma-separated, so the record keeps value equality.</remarks>
+    public string CustomAgents { get; init; } = "";
+
+    public IReadOnlyList<string> CustomAgentNames =>
+        CustomAgents.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     public AppSettings Normalize() => this with
     {
         RefreshIntervalSeconds = Math.Clamp(RefreshIntervalSeconds, 1, 60),

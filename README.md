@@ -135,21 +135,54 @@ portpilot                 live view: arrows to move, / to search, x to stop, o t
 portpilot list            every listening port      -a all TCP states, -d dev ports, --json
 portpilot 3000            who is on port 3000, with path, command line and start time
 portpilot kill 3000       stop it (asks first; -y to skip)
-portpilot projects        what each git project is running, and which Claude session started it
-portpilot cleanup         stop what ended Claude sessions left running (asks first; -y to skip)
+portpilot projects        what each git project is running, and which agent session started it
+portpilot cleanup         stop what ended agent sessions left running (asks first; -y to skip)
+portpilot health          is each dev server actually answering?
+portpilot logs 3000       the last lines it wrote
+portpilot setup claude    hook + background watcher + MCP server, in one go
 ```
 
 Stopping a process sends `SIGTERM`, waits three seconds, then sends `SIGKILL`. It refuses if the PID has been reused since you looked, and it won't stop init, kernel threads or itself. Linux only tells you who owns another user's socket if you are root, so those rows say *Owned by another user*. The desktop app offers *Restart as root* (through polkit); in the terminal, use `sudo`.
 
 ### Projects and agents
 
-If you run several projects at once, especially with a Claude Code session in each, ports stop being the useful unit. So on Linux PortPilot also works out *whose* each port is:
+If you run several projects at once, especially with a coding agent in each, ports stop being the useful unit. So PortPilot also works out *whose* each port is, on Linux and Windows:
 
 - **Which project.** Each process's working directory is matched to its git repository, branch and worktree. Ports are grouped into project cards above the table (*atlas-web · feature/auth: 3 ports, 2 processes*), and each row is tagged. Click a card to see only that project, or search `project:atlas`.
-- **Which agent.** If a process descends from a Claude Code session, it's tagged *Claude*, and the inspector names the session.
-- **What was left behind.** When that session ends but its dev server keeps running, the row turns *Left behind*. The project card offers *Clean up*, and there's *Clean up all* for every project at once. This is the `EADDRINUSE` you'd otherwise hit tomorrow morning.
+- **Which agent.** If a process descends from Claude Code, Codex, Gemini CLI, Aider, opencode, Cursor Agent, Amp or Goose, it's tagged with that agent. You can add your own in Settings.
+- **What was left behind.** When the session ends but its dev server keeps running, the row turns *Left behind*, and the project card offers *Clean up*. A process whose parent has gone but has no agent history is marked *Detached*: it's shown, and never stopped for you.
+- **Is it actually up?** The inspector checks health (a TCP connect, then an HTTP GET, with the status code and latency), and shows the process's recent output when it writes to a file or the systemd journal. Output to a terminal or a pipe can't be read by any other program, and Windows doesn't allow reading it at all.
 
-PortPilot can only connect a leftover process to its session if it saw the process while the session was running. Once the session ends, Linux hands the process to init and the link is gone. Keep the desktop app in the tray, or the live view open, and it records these links in `$XDG_RUNTIME_DIR/portpilot-lineage`, so even a one-off `portpilot cleanup` knows what to stop. All of this needs Linux's `/proc`, so Windows doesn't have project grouping or agent tracking yet.
+One command connects all of this to Claude Code:
+
+```sh
+portpilot setup claude          # add --stop to also stop leftovers when a session ends
+```
+
+That sets up three things. Each can also be switched on or off in Settings → Coding agents.
+
+| What | Why |
+| --- | --- |
+| **A SessionEnd hook** in `~/.claude/settings.json` | When a session ends, its process tree is still intact. The hook records everything the session started, so leftovers are recognised even if PortPilot wasn't running at the time. |
+| **A background watcher** (systemd user service, or a scheduled task on Windows) | Scans every 3 seconds with almost no CPU, and records sessions from agents that have no hooks. |
+| **An MCP server** (`portpilot mcp`) | Claude can ask PortPilot instead of guessing. |
+
+The MCP server gives Claude these tools:
+
+| Tool | What it does |
+| --- | --- |
+| `project_status` | What this project is running, with a health check on each port, and anything left behind. Use it before starting a dev server, to reuse one that's already running. |
+| `find_free_port` | Free ports near a preferred one, checked by actually binding them. |
+| `list_ports` | Every listening port, filtered by project or dev port. |
+| `port_owner` | Who holds a port. |
+| `check_health` | Whether a port answers, with status code and latency. |
+| `read_logs` | The recent output of the process on a port. |
+| `stop_process` | Stop the process on a port. |
+| `cleanup_leftovers` | Stop everything ended sessions left behind. |
+
+The two that stop processes are marked destructive, so Claude asks you before it uses them.
+
+Terminal equivalents: `portpilot health`, `portpilot logs 3000`, `portpilot projects`, `portpilot cleanup`.
 
 Settings live in `~/.config/PortPilot/settings.json` and logs in `~/.local/share/PortPilot/logs`. `portpilot-desktop --demo` runs it against a pretend machine.
 
@@ -241,7 +274,7 @@ src/PortPilot.Presentation  View models and MVVM plumbing shared by both desktop
 src/PortPilot.App           The Windows app (WPF). A hand-built design system and Windows integration.
 src/PortPilot.Linux         The Linux app (Avalonia). The same design system, ported, plus Linux integration.
 src/PortPilot.Cli           The terminal app (Linux and Windows). Native AOT, live view and commands.
-tests/PortPilot.Core.Tests  63 tests. They open real sockets, kill real (consenting) processes, and impersonate Claude.
+tests/PortPilot.Core.Tests  69 tests. They open real sockets, kill real (consenting) processes, and impersonate Claude.
 tools/PortPilot.IconGen     Draws the app icon in code, because the icon is also code.
 installer/PortPilot.iss     The Inno Setup script.
 ```
@@ -252,7 +285,7 @@ installer/PortPilot.iss     The Inno Setup script.
 
 - **Discovery** calls `GetExtendedTcpTable` and `GetExtendedUdpTable` directly. Process details come from `QueryFullProcessImageName`, `GetProcessTimes` and `NtQueryInformationProcess` (for the command line). A cache keyed on PID *and* start time means steady-state scans only touch processes that are new.
 - **On Linux**, discovery parses `/proc/net/{tcp,tcp6,udp,udp6}` straight from bytes, with no per-line strings. procfs gives socket inodes rather than PIDs, so inodes are mapped to owners by walking `/proc/[pid]/fd`; that map is cached, so the walk only happens when a socket PortPilot has never seen appears, and it stops as soon as every new one is found. Process details come from `/proc/[pid]/{stat,exe,cmdline}`, and PID reuse is caught by comparing start times, as on Windows.
-- **Projects and agents** come from data the scan already reads, so they add almost nothing to a scan:
+- **Projects and agents** come from data the scan already reads, so they add almost nothing to a scan. On Windows the working directory is read from the process's PEB (`RTL_USER_PROCESS_PARAMETERS.CurrentDirectory`); because Windows never re-parents processes, a dead or reused parent PID is how it tells that a process is detached. Details on Linux:
   - **Project:** the working directory (`/proc/[pid]/cwd`) is matched to the nearest `.git`, and the result is cached per directory. Linked worktrees are named after their main checkout. The branch is re-read from `HEAD`, which is one small file.
   - **Agent:** found by walking `/proc/[pid]/stat` up the chain of parent processes, done only when a process is first seen.
   - **Leftovers:** a process counts as left behind when its recorded agent no longer exists with the same start time.

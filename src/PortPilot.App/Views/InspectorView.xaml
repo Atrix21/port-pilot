@@ -174,6 +174,33 @@
                     </StackPanel>
                 </Grid>
 
+                <Grid Style="{StaticResource FactRow}" Visibility="{Binding CanCheckHealth, Converter={StaticResource VisibleWhen}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="92" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Style="{StaticResource Key}" Text="Health" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Margin="0,1,8,0" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{DynamicResource Text.Tertiary}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsHealthy}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource Positive}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsUnhealthy}" Value="True">
+                                            <Setter Property="Fill" Value="{DynamicResource Negative}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource Value}" Text="{Binding HealthText}" />
+                        <Button Width="22" Height="22" Margin="6,-4,0,-4" Command="{Binding RefreshHealthCommand}" Style="{StaticResource Button.IconSmall}" ToolTip="Check again" ui:Ui.Icon="{StaticResource Icon.Refresh}" ui:Ui.IconSize="12" />
+                    </StackPanel>
+                </Grid>
+
                 <Border Margin="0,8,0,20" Style="{StaticResource Divider}" />
 
                 <!-- Process -->
@@ -261,6 +288,90 @@
                                  Text="{Binding Row.CommandLine, Mode=OneWay}"
                                  VerticalScrollBarVisibility="Auto" />
                     </Border>
+                </StackPanel>
+
+                <!-- Project & agent -->
+                <StackPanel Margin="0,22,0,0" Visibility="{Binding Row.HasProject, Converter={StaticResource VisibleWhen}}">
+                    <Border Margin="0,0,0,20" Style="{StaticResource Divider}" />
+                    <TextBlock Style="{StaticResource SectionLabel}" Text="Project" />
+                    <Grid Style="{StaticResource FactRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="92" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Key}" Text="Repository" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock FontWeight="SemiBold" Style="{StaticResource Value}" Text="{Binding Row.ProjectName}" />
+                            <Border Margin="6,0,0,0" Padding="5,0" Background="{DynamicResource Fill.Subtle}" CornerRadius="4" Visibility="{Binding Row.IsWorktree, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Style="{StaticResource Text.Micro}" Text="worktree" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Style="{StaticResource FactRow}" Visibility="{Binding Row.ProjectBranch, Converter={StaticResource VisibleWhen}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="92" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Key}" Text="Branch" />
+                        <TextBox Grid.Column="1" Style="{StaticResource TextBox.Selectable}" Text="{Binding Row.ProjectBranch, Mode=OneWay}" />
+                    </Grid>
+                    <Grid Style="{StaticResource FactRow}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="92" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Key}" Text="Folder" />
+                        <TextBox Grid.Column="1" Style="{StaticResource TextBox.Selectable}" Text="{Binding Row.WorkingDirectory, Mode=OneWay}" />
+                    </Grid>
+                </StackPanel>
+                <Border Margin="0,8,0,0" Padding="12,11" Background="{DynamicResource Accent.Soft}" CornerRadius="9" Visibility="{Binding Row.Agent.IsRunning, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ui:Icon Margin="0,1,10,0" VerticalAlignment="Top" Data="{StaticResource Icon.Agent}" Foreground="{DynamicResource Accent}" Size="15" />
+                        <TextBlock Grid.Column="1" Style="{StaticResource Value}" Text="{Binding Row.AgentText}" />
+                    </Grid>
+                </Border>
+                <Border Margin="0,8,0,0" Padding="12,11" Background="{DynamicResource Caution.Soft}" CornerRadius="9">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Row.IsOrphaned}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Row.IsPossiblyLeftBehind}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ui:Icon Margin="0,1,10,0" VerticalAlignment="Top" Data="{StaticResource Icon.Agent}" Foreground="{DynamicResource Caution}" Size="15" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock FontWeight="SemiBold" Style="{StaticResource Value}" Text="Left behind" />
+                            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Text.Secondary}" Style="{StaticResource Value}" Text="{Binding Row.AgentText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Output -->
+                <StackPanel Margin="0,22,0,0">
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Label}" Text="Output" />
+                        <Button Width="22" Height="22" HorizontalAlignment="Right" Command="{Binding RefreshLogsCommand}" Style="{StaticResource Button.IconSmall}" ToolTip="Read again" ui:Ui.Icon="{StaticResource Icon.Refresh}" ui:Ui.IconSize="12" />
+                    </Grid>
+                    <TextBlock Margin="0,0,0,6" FontFamily="{StaticResource Font.Mono}" Style="{StaticResource Text.Micro}" Text="{Binding LogSource}" Visibility="{Binding HasLogs, Converter={StaticResource VisibleWhen}}" />
+                    <Border Padding="11,9" Background="{DynamicResource Fill.Subtle}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1" CornerRadius="8" Visibility="{Binding HasLogs, Converter={StaticResource VisibleWhen}}">
+                        <TextBox MaxHeight="180" FontSize="11" Foreground="{DynamicResource Text.Secondary}" HorizontalScrollBarVisibility="Auto" Style="{StaticResource TextBox.Selectable}" Text="{Binding LogText, Mode=OneWay}" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" />
+                    </Border>
+                    <TextBlock Foreground="{DynamicResource Text.Tertiary}" Style="{StaticResource Text.Caption}" Text="{Binding LogUnavailable}" TextTrimming="None" TextWrapping="Wrap" Visibility="{Binding HasLogs, Converter={StaticResource HiddenWhen}}" />
                 </StackPanel>
 
                 <!-- Siblings -->

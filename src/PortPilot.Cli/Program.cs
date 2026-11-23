@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using PortPilot.Cli;
 using PortPilot.Core;
+using PortPilot.Core.Diagnostics;
 using PortPilot.Core.Discovery;
 using PortPilot.Core.Model;
 using PortPilot.Core.Processes;
@@ -31,7 +32,11 @@ if (flags.Contains("--version") || command == "version")
     return 0;
 }
 
+// Recognise any extra agents the user configured in the desktop app's settings.
+AgentDetector.Configure(new PortPilot.Core.Settings.JsonSettingsStore(PortPilot.Core.Settings.JsonSettingsStore.DefaultPath).Load().CustomAgentNames);
+
 var all = flags.Contains("-a") || flags.Contains("--all");
+var stopFlag = flags.Contains("--stop");
 var dev = flags.Contains("-d") || flags.Contains("--dev");
 
 switch (command)
@@ -43,6 +48,28 @@ switch (command)
         return List(string.Join(' ', rest), all, dev, flags.Contains("--json"));
     case "who" or "inspect":
         return Who(rest);
+    case "hook" when rest.FirstOrDefault() == "session-end":
+        return await Integrations.SessionEndHookAsync(stopFlag);
+    case "install-hooks":
+        return Integrations.InstallHooks(stopFlag);
+    case "uninstall-hooks":
+        return Integrations.UninstallHooks();
+    case "watch":
+        return await Integrations.WatchAsync();
+    case "install-watcher":
+        return Integrations.InstallWatcher();
+    case "uninstall-watcher":
+        return Integrations.UninstallWatcher();
+    case "mcp":
+        return await new McpServer().RunAsync();
+    case "install-mcp":
+        return Integrations.RegisterMcp();
+    case "setup" when rest.FirstOrDefault() is null or "claude":
+        return Integrations.SetupClaude(stopFlag);
+    case "logs" or "log":
+        return Logs(rest);
+    case "health":
+        return await HealthAsync(rest);
     case "projects" or "p":
         return Projects(all);
     case "cleanup" or "clean":
@@ -150,6 +177,13 @@ static int Who(List<string> rest)
             sb.Append(OperatingSystem.IsWindows() ? "  Details need administrator access.\n" : "  Details need root; try sudo.\n");
         }
 
+        if (e.Binding.Protocol == TransportProtocol.Tcp)
+        {
+            Line(sb, "health", HealthProbe.CheckAsync(e).GetAwaiter().GetResult().Summary);
+        }
+
+        var logs = ProcessLogs.Read(e.ProcessId, 5);
+        Line(sb, "output", logs.IsAvailable ? $"{logs.Source}  (portpilot logs {port})" : null);
         sb.Append(CultureInfo.InvariantCulture, $"  stop it with  portpilot kill {port}\n\n");
     }
 
@@ -240,6 +274,61 @@ static async Task<int> KillAsync(List<string> rest, bool yes, bool json)
     }
 
     return failed == 0 ? 0 : 1;
+}
+
+static int Logs(List<string> rest)
+{
+    if (rest.Count == 0)
+    {
+        Console.Error.WriteLine("Usage: portpilot logs <port> | pid:<pid>  [lines]");
+        return 2;
+    }
+
+    var lines = rest.Count > 1 && int.TryParse(rest[1], out var n) ? Math.Clamp(n, 1, 2000) : 40;
+    var entry = Integrations.Resolve(rest[0], Scan(false, PortFilter.Default)).FirstOrDefault();
+    var pid = entry?.ProcessId ?? (rest[0].StartsWith("pid:", StringComparison.Ordinal) && int.TryParse(rest[0][4..], out var p) ? p : 0);
+    if (pid == 0)
+    {
+        Console.WriteLine($"Nothing is listening on {rest[0]}.");
+        return 1;
+    }
+
+    var tail = ProcessLogs.Read(pid, lines);
+    if (!tail.IsAvailable)
+    {
+        Console.WriteLine(tail.Unavailable);
+        return 1;
+    }
+
+    Console.Error.WriteLine($"── {tail.Source}");
+    Console.Out.Write(string.Join('\n', tail.Lines) + "\n");
+    return 0;
+}
+
+static async Task<int> HealthAsync(List<string> rest)
+{
+    var entries = Scan(false, PortFilter.Default).Where(e => e.Binding.Protocol == TransportProtocol.Tcp).ToList();
+    var targets = rest.Count == 0
+        ? entries.Where(e => e.Known?.Kind == KnownPortKind.DevServer || e.Process.Project is not null).GroupBy(e => e.Port).Select(g => g.First()).ToList()
+        : rest.SelectMany(r => Integrations.Resolve(r, entries).Take(1)).ToList();
+    if (targets.Count == 0)
+    {
+        Console.WriteLine(rest.Count == 0 ? "No dev servers to check." : "Nothing is listening there.");
+        return 1;
+    }
+
+    var results = await Task.WhenAll(targets.Select(e => HealthProbe.CheckAsync(e)));
+    var failing = 0;
+    for (var i = 0; i < targets.Count; i++)
+    {
+        var e = targets[i];
+        var r = results[i];
+        var mark = r.State switch { HealthState.Healthy or HealthState.Accepting => "ok  ", HealthState.Erroring => "err ", _ => "down" };
+        failing += r.State is HealthState.Healthy or HealthState.Accepting ? 0 : 1;
+        Console.WriteLine($"{mark}  :{e.Port,-6} {Format.Process(e.Process),-16} {r.Summary}{(e.Process.Project is { } proj ? $"   {proj.DisplayText}" : "")}");
+    }
+
+    return failing == 0 ? 0 : 1;
 }
 
 static string Header(int width)
@@ -420,8 +509,17 @@ static string Help() => """
       portpilot who <port>           explain what holds a port (also: portpilot <port>)
       portpilot kill <port>          stop whatever holds a port   -y skip confirmation
       portpilot kill pid:<pid>       stop a process by PID
-      portpilot projects             what each git project is running, and which Claude session started it
+      portpilot projects             what each git project is running, and which agent session started it
       portpilot cleanup              stop what ended agent sessions left running   -y skip confirmation
+      portpilot health [port…]       is it actually answering? (all dev servers when no port is given)
+      portpilot logs <port> [n]      the last n lines it wrote (redirected to a file, or the journal)
+
+    Agents and integrations
+      portpilot setup claude         all three below in one go   --stop also stops leftovers when a session ends
+      portpilot install-hooks        record what each Claude Code session started, when it ends
+      portpilot install-watcher      a background watcher that starts at login
+      portpilot install-mcp          let Claude ask PortPilot directly (MCP server: portpilot mcp)
+      portpilot uninstall-hooks | uninstall-watcher
 
     Live view keys
       ↑↓ / j k   move           /     search          x / Del   stop process

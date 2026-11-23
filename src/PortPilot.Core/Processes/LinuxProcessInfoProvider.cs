@@ -12,44 +12,24 @@ namespace PortPilot.Core.Processes;
 /// </summary>
 public sealed class LinuxProcessInfoProvider : IProcessInfoProvider
 {
-    private static readonly TimeSpan LineagePruneInterval = TimeSpan.FromSeconds(30);
-
     private readonly ILogger _log;
-    private readonly LineageStore? _store;
-    private bool _lineageDirty;
-
     private readonly Dictionary<int, ProcessDetails> _cache = [];
     private readonly Lock _gate = new();
-
-    // Which agent session started each process, remembered after the session ends so its leftovers
-    // can still be attributed once they have been re-parented to init.
-    private readonly Dictionary<int, (long StartTicks, AgentSession Agent)> _lineage = [];
-    private DateTimeOffset _lastLineagePrune = DateTimeOffset.UtcNow;
+    private readonly AgentLineage _lineage;
 
     /// <param name="lineagePath">
-    /// Where to share agent attribution with other PortPilot processes, so a one-off CLI run can still
-    /// recognise what a long-running copy saw an agent start. Null keeps it in memory only.
+    /// Where to share agent attribution with other PortPilot processes (see <see cref="AgentLineage"/>).
+    /// Null keeps it in memory only.
     /// </param>
     public LinuxProcessInfoProvider(ILogger<LinuxProcessInfoProvider>? logger = null, string? lineagePath = null)
     {
         _log = logger ?? NullLogger<LinuxProcessInfoProvider>.Instance;
-        if (lineagePath is not null)
-        {
-            _store = new LineageStore(lineagePath);
-            foreach (var (pid, entry) in _store.Load())
-            {
-                if (IsSameProcess(pid, entry.StartTicks))
-                {
-                    _lineage[pid] = entry;
-                }
-            }
-        }
+        _lineage = new AgentLineage(StartTimeOf, lineagePath);
     }
 
-    /// <summary>The shared lineage file: per user, on tmpfs, gone at logout.</summary>
-    public static string DefaultLineagePath => Path.Combine(
-        Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR") is { Length: > 0 } runtime ? runtime : Path.GetTempPath(),
-        "portpilot-lineage");
+    /// <summary>The start time of a running process, or null.</summary>
+    public static DateTimeOffset? StartTimeOf(int pid) =>
+        ProcFs.TryReadStat(pid, out var stat) && !stat.IsGone ? ProcFs.ToStartTime(stat.StartTicks) : null;
 
     public IReadOnlyDictionary<int, ProcessDetails> Resolve(IReadOnlyCollection<int> processIds)
     {
@@ -64,42 +44,21 @@ public sealed class LinuxProcessInfoProvider : IProcessInfoProvider
 
             var result = new Dictionary<int, ProcessDetails>(wanted.Count);
             var resolved = 0;
-            Dictionary<string, bool>? agentAlive = null;
+            var alive = new Dictionary<string, bool>(StringComparer.Ordinal);
             foreach (var pid in wanted)
             {
                 if (!_cache.TryGetValue(pid, out var details) || !IsStillValid(details))
                 {
-                    details = Remember(Inspect(pid));
+                    details = _lineage.Apply(Inspect(pid), alive);
                     resolved++;
                 }
 
-                // An agent that was running at the last scan may have exited since.
-                if (details.Agent is { IsRunning: true } agent && !AliveCached(agent, ref agentAlive))
-                {
-                    details = details with { Agent = agent with { IsRunning = false } };
-                }
-
+                details = _lineage.Refresh(details, alive);
                 _cache[pid] = details;
                 result[pid] = details;
             }
 
-            PruneLineage();
-            if (_lineageDirty && _store is not null)
-            {
-                _lineageDirty = false;
-
-                // Merge with what other PortPilot processes recorded, then publish.
-                foreach (var (pid, entry) in _store.Load())
-                {
-                    if (!_lineage.ContainsKey(pid) && IsSameProcess(pid, entry.StartTicks))
-                    {
-                        _lineage[pid] = entry;
-                    }
-                }
-
-                _store.Save(_lineage);
-            }
-
+            _lineage.Flush();
             if (resolved > 0)
             {
                 _log.LogDebug("Resolved {Count} new processes", resolved);
@@ -108,79 +67,6 @@ public sealed class LinuxProcessInfoProvider : IProcessInfoProvider
             return result;
         }
     }
-
-    /// <summary>Records which agent started a process, or fills it in from the record if the agent has gone.</summary>
-    private ProcessDetails Remember(ProcessDetails details)
-    {
-        if (details.StartTime is not { } start || details.ProcessId <= 0)
-        {
-            return details;
-        }
-
-        var ticks = start.UtcTicks;
-        if (details.Agent is { } agent)
-        {
-            if (!_lineage.TryGetValue(details.ProcessId, out var existing) || existing.StartTicks != ticks)
-            {
-                _lineage[details.ProcessId] = (ticks, agent);
-                _lineageDirty = true;
-            }
-
-            return details;
-        }
-
-        if (_lineage.TryGetValue(details.ProcessId, out var known) && known.StartTicks == ticks)
-        {
-            return details with { Agent = known.Agent with { IsRunning = IsAlive(known.Agent) } };
-        }
-
-        // A child of a process we already attributed (e.g. a server forked by a script) inherits it.
-        if (details.ParentProcessId is { } parent && _lineage.TryGetValue(parent, out var parentAgent))
-        {
-            _lineage[details.ProcessId] = (ticks, parentAgent.Agent);
-            _lineageDirty = true;
-            return details with { Agent = parentAgent.Agent with { IsRunning = IsAlive(parentAgent.Agent) } };
-        }
-
-        return details;
-    }
-
-    private void PruneLineage()
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (now - _lastLineagePrune < LineagePruneInterval)
-        {
-            return;
-        }
-
-        _lastLineagePrune = now;
-        foreach (var (pid, entry) in _lineage.ToList())
-        {
-            if (!IsSameProcess(pid, entry.StartTicks))
-            {
-                _lineage.Remove(pid);
-                _lineageDirty = true;
-            }
-        }
-    }
-
-    /// <summary>The PID still belongs to the process that started at <paramref name="startTicks"/>.</summary>
-    private static bool IsSameProcess(int pid, long startTicks) =>
-        ProcFs.TryReadStat(pid, out var stat) && !stat.IsGone && ProcFs.ToStartTime(stat.StartTicks).UtcTicks == startTicks;
-
-    private static bool AliveCached(AgentSession agent, ref Dictionary<string, bool>? memo)
-    {
-        memo ??= [];
-        if (!memo.TryGetValue(agent.Key, out var alive))
-        {
-            memo[agent.Key] = alive = IsAlive(agent);
-        }
-
-        return alive;
-    }
-
-    private static bool IsAlive(AgentSession agent) =>
-        ProcFs.TryReadStat(agent.ProcessId, out var stat) && !stat.IsGone && ProcFs.ToStartTime(stat.StartTicks) == agent.StartTime;
 
     private static bool IsStillValid(ProcessDetails details)
     {
@@ -239,7 +125,22 @@ public sealed class LinuxProcessInfoProvider : IProcessInfoProvider
             WorkingDirectory = cwd,
             Project = ProjectResolver.Resolve(cwd),
             Agent = AgentDetector.FindAncestor(pid, stat.ParentId),
+            IsDetached = IsReparented(stat.ParentId),
         };
+    }
+
+    /// <summary>
+    /// Whether the process was handed to init or a user service manager, which is what happens when
+    /// the shell, terminal or agent that started it has gone.
+    /// </summary>
+    private static bool IsReparented(int parentId)
+    {
+        if (parentId == 1)
+        {
+            return true;
+        }
+
+        return ProcFs.TryReadStat(parentId, out _, out var comm) && comm == "systemd";
     }
 
     /// <summary>

@@ -78,6 +78,47 @@
 
                     <Border Margin="0,22,0,20" Classes="divider" />
 
+                    <!-- Coding agents -->
+                    <TextBlock Margin="0,0,0,4" Classes="label" Text="Coding agents" />
+                    <TextBlock Classes="row-caption" Text="{Binding Settings.BuiltInAgentsText, StringFormat='PortPilot recognises {0}.'}" />
+                    <TextBlock Margin="0,8,0,0" Classes="row-caption" Foreground="{DynamicResource Caution}" Text="{Binding Settings.IntegrationUnavailableText}" IsVisible="{Binding !Settings.CanIntegrate}" />
+                    <Grid Classes="setting" ColumnDefinitions="*,Auto" IsEnabled="{Binding Settings.CanIntegrate}">
+                        <StackPanel>
+                            <TextBlock Classes="body" Text="Record Claude Code sessions" />
+                            <TextBlock Classes="row-caption" Text="A session-end hook records what each session started, so leftovers are recognised even if PortPilot wasn't running." />
+                        </StackPanel>
+                        <ToggleSwitch IsChecked="{Binding Settings.HookInstalled}" />
+                    </Grid>
+                    <Grid Classes="setting" ColumnDefinitions="*,Auto" IsEnabled="{Binding Settings.CanIntegrate}">
+                        <StackPanel>
+                            <TextBlock Classes="body" Text="Stop leftovers when a session ends" />
+                            <TextBlock Classes="row-caption" Text="The hook also stops anything the session left holding a port." />
+                        </StackPanel>
+                        <ToggleSwitch IsChecked="{Binding Settings.HookStopsLeftovers}" />
+                    </Grid>
+                    <Grid Classes="setting" ColumnDefinitions="*,Auto" IsEnabled="{Binding Settings.CanIntegrate}">
+                        <StackPanel>
+                            <TextBlock Classes="body" Text="Background watcher" />
+                            <TextBlock Classes="row-caption" Text="A tiny service that starts at login and records every agent session, for agents without hooks." />
+                        </StackPanel>
+                        <ToggleSwitch IsChecked="{Binding Settings.WatcherInstalled}" />
+                    </Grid>
+                    <Grid Classes="setting" ColumnDefinitions="*,Auto" IsEnabled="{Binding Settings.CanIntegrate}">
+                        <StackPanel>
+                            <TextBlock Classes="body" Text="Let Claude ask PortPilot (MCP)" />
+                            <TextBlock Classes="row-caption" Text="Claude Code can check ports, project status, health and logs, and find free ports, instead of guessing." />
+                        </StackPanel>
+                        <ToggleSwitch IsChecked="{Binding Settings.McpRegistered}" />
+                    </Grid>
+                    <StackPanel Margin="0,14,0,0">
+                        <TextBlock Classes="body" Text="Other agents" />
+                        <TextBlock Classes="row-caption" Text="Executable names to recognise as agents too, separated by commas." />
+                        <TextBox Margin="0,8,0,0" Text="{Binding Settings.CustomAgentsText}" Watermark="e.g. my-agent, devin" FontSize="{StaticResource Type.Caption}" />
+                    </StackPanel>
+                    <TextBlock Margin="0,10,0,0" Classes="row-caption" Foreground="{DynamicResource Text.Secondary}" Text="{Binding Settings.IntegrationMessage}" IsVisible="{Binding Settings.IntegrationMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                    <Border Margin="0,22,0,20" Classes="divider" />
+
                     <!-- Startup and tray -->
                     <TextBlock Margin="0,0,0,4" Classes="label" Text="Startup and tray" />
                     <Grid Classes="setting" ColumnDefinitions="*,Auto" Margin="0,10,0,0">

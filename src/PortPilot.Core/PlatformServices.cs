@@ -29,11 +29,11 @@ public static class PlatformServices
         logs ??= NullLoggerFactory.Instance;
         if (OperatingSystem.IsLinux())
         {
-            return new LinuxProcessInfoProvider(logs.CreateLogger<LinuxProcessInfoProvider>(), LinuxProcessInfoProvider.DefaultLineagePath);
+            return new LinuxProcessInfoProvider(logs.CreateLogger<LinuxProcessInfoProvider>(), AgentLineage.DefaultPath);
         }
 
         EnsureWindows();
-        return new ProcessInfoProvider(logger: logs.CreateLogger<ProcessInfoProvider>());
+        return new ProcessInfoProvider(logger: logs.CreateLogger<ProcessInfoProvider>(), lineagePath: AgentLineage.DefaultPath);
     }
 
     public static IProcessTerminator CreateProcessTerminator(ILoggerFactory? logs = null)

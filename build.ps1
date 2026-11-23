@@ -58,6 +58,12 @@ if (Test-Path $publish) { Get-ChildItem $publish | Remove-Item -Recurse -Force }
     -p:Version=$Version -o $publish --nologo
 if ($LASTEXITCODE) { throw 'Publish failed' }
 
+# The terminal app ships beside the GUI: it is the Claude Code hook, the background watcher and the MCP server.
+# It lives in cli\ because Windows file names are case-insensitive: portpilot.exe would replace PortPilot.exe.
+Write-Host '› Publishing cli\portpilot.exe (native AOT)' -ForegroundColor Cyan
+& $dotnet publish src/PortPilot.Cli -c Release -r win-x64 -p:Version=$Version -o (Join-Path $publish 'cli') --nologo
+if ($LASTEXITCODE) { throw 'CLI publish failed' }
+
 if ($Screenshots) {
     Write-Host '› Rendering screenshots' -ForegroundColor Cyan
     $shots = Join-Path $PSScriptRoot 'docs/screenshots'

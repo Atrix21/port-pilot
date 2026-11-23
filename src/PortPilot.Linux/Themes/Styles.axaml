@@ -155,7 +155,9 @@
         <Setter Property="Foreground" Value="{DynamicResource Accent}" />
     </Style>
     <Style Selector="Border.agent-tag.orphaned">
-        <Setter Property="Background" Value="{DynamicResource Caution.Soft}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Caution}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.agent-tag.orphaned TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource Caution}" />
@@ -196,6 +198,24 @@
     <Style Selector="TextBlock.status.orphaned">
         <Setter Property="Foreground" Value="{DynamicResource Caution}" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Ellipse.dot.detached">
+        <Setter Property="Fill" Value="{DynamicResource Caution}" />
+        <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="TextBlock.status.detached">
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="Ellipse.health">
+        <Setter Property="Width" Value="7" />
+        <Setter Property="Height" Value="7" />
+        <Setter Property="Fill" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+    <Style Selector="Ellipse.health.ok">
+        <Setter Property="Fill" Value="{DynamicResource Positive}" />
+    </Style>
+    <Style Selector="Ellipse.health.bad">
+        <Setter Property="Fill" Value="{DynamicResource Negative}" />
     </Style>
     <Style Selector="TextBlock.status.closed">
         <Setter Property="Foreground" Value="{DynamicResource Negative}" />

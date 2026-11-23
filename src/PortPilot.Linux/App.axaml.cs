@@ -62,6 +62,7 @@ public sealed partial class App : Application, IAppShell
         var store = new JsonSettingsStore(JsonSettingsStore.DefaultPath, _logs.CreateLogger<JsonSettingsStore>());
         var settings = options.ScreenshotDirectory is null ? store.Load() : new AppSettings();
 
+        PortPilot.Core.Processes.AgentDetector.Configure(settings.CustomAgentNames);
         var theme = new ThemeService();
         theme.Apply(settings.Theme, animate: false);
 

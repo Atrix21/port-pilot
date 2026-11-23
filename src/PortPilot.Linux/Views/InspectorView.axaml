@@ -129,6 +129,17 @@
                     </StackPanel>
                 </Grid>
 
+                <Grid Classes="fact" ColumnDefinitions="92,*" IsVisible="{Binding Inspector.CanCheckHealth}">
+                    <TextBlock Classes="key" Text="Health" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Ellipse VerticalAlignment="Center" Classes="health" Classes.ok="{Binding Inspector.IsHealthy}" Classes.bad="{Binding Inspector.IsUnhealthy}" />
+                        <TextBlock VerticalAlignment="Center" Classes="value" Text="{Binding Inspector.HealthText}" />
+                        <Button Classes="icon-small" Width="22" Height="22" Margin="-2,-4,0,-4" Command="{Binding Inspector.RefreshHealthCommand}" ToolTip.Tip="Check again">
+                            <c:Icon Data="{StaticResource Icon.Refresh}" Size="12" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
                 <Border Margin="0,8,0,20" Classes="divider" />
 
                 <!-- Process -->
@@ -210,10 +221,27 @@
                         <StackPanel Grid.Column="1">
                             <TextBlock FontWeight="SemiBold" Classes="value" Text="Left behind" />
                             <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Text.Secondary}" Classes="value"
-                                       Text="The Claude Code session that started this has ended, but the process is still running and holding its ports." />
+                                       Text="{Binding Inspector.Row.AgentText}" />
                         </StackPanel>
                     </Grid>
                 </Border>
+
+                <!-- Output -->
+                <StackPanel Margin="0,22,0,0">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                        <TextBlock VerticalAlignment="Center" Classes="label" Text="Output" />
+                        <Button Grid.Column="1" Classes="icon-small" Width="22" Height="22" Command="{Binding Inspector.RefreshLogsCommand}" ToolTip.Tip="Read again">
+                            <c:Icon Data="{StaticResource Icon.Refresh}" Size="12" />
+                        </Button>
+                    </Grid>
+                    <TextBlock Margin="0,0,0,6" Classes="micro mono" Text="{Binding Inspector.LogSource}" IsVisible="{Binding Inspector.HasLogs}" />
+                    <Border Padding="11,9" Background="{DynamicResource Fill.Subtle}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1" CornerRadius="8" IsVisible="{Binding Inspector.HasLogs}">
+                        <ScrollViewer Name="LogScroll" MaxHeight="180" HorizontalScrollBarVisibility="Auto">
+                            <SelectableTextBlock FontSize="11" Classes="mono" Foreground="{DynamicResource Text.Secondary}" TextWrapping="NoWrap" TextTrimming="None" Text="{Binding Inspector.LogText}" />
+                        </ScrollViewer>
+                    </Border>
+                    <TextBlock Classes="caption wrap" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding Inspector.LogUnavailable}" IsVisible="{Binding !Inspector.HasLogs}" />
+                </StackPanel>
 
                 <!-- Siblings -->
                 <StackPanel Margin="0,22,0,0" IsVisible="{Binding Inspector.HasSiblings}">

@@ -9,8 +9,10 @@ namespace PortPilot.Core.Processes;
 /// Resolves process details with a PID-reuse-aware cache so steady-state scans touch the
 /// process table only for processes that appeared since the previous scan.
 /// </summary>
-public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<ProcessInfoProvider>? logger = null) : IProcessInfoProvider
+public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<ProcessInfoProvider>? logger = null, string? lineagePath = null) : IProcessInfoProvider
 {
+    private readonly AgentLineage _lineage = new(StartTimeOf, lineagePath);
+
     /// <summary>Restricted processes cannot be re-validated by start time, so they expire instead.</summary>
     private static readonly TimeSpan RestrictedTtl = TimeSpan.FromSeconds(20);
 
@@ -37,11 +39,18 @@ public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<Proc
             var result = new Dictionary<int, ProcessDetails>(wanted.Count);
             List<int>? unresolved = null;
 
+            var alive = new Dictionary<string, bool>(StringComparer.Ordinal);
             foreach (var pid in wanted)
             {
                 if (_cache.TryGetValue(pid, out var cached) && IsStillValid(cached, now))
                 {
-                    result[pid] = cached.Details;
+                    var refreshed = _lineage.Refresh(cached.Details, alive);
+                    if (!ReferenceEquals(refreshed, cached.Details))
+                    {
+                        _cache[pid] = cached with { Details = refreshed };
+                    }
+
+                    result[pid] = refreshed;
                 }
                 else
                 {
@@ -54,7 +63,7 @@ public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<Proc
                 var names = NativeProcess.SnapshotProcessNames();
                 foreach (var pid in unresolved)
                 {
-                    var details = Inspect(pid, names);
+                    var details = _lineage.Apply(Inspect(pid, names), alive);
                     _cache[pid] = new CacheEntry(details, now);
                     result[pid] = details;
                 }
@@ -62,8 +71,22 @@ public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<Proc
                 _log.LogDebug("Resolved {Count} new processes", unresolved.Count);
             }
 
+            _lineage.Flush();
             return result;
         }
+    }
+
+    /// <summary>The start time of a running process, or null.</summary>
+    public static DateTimeOffset? StartTimeOf(int pid)
+    {
+        var open = NativeProcess.Open(pid, Kernel32.PROCESS_QUERY_LIMITED_INFORMATION);
+        if (!open.Success)
+        {
+            return null;
+        }
+
+        using var handle = open.Handle!;
+        return NativeProcess.HasExited(handle) ? null : NativeProcess.GetStartTime(handle);
     }
 
     /// <summary>Reads fresh details for one process, bypassing the cache.</summary>
@@ -122,6 +145,8 @@ public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<Proc
         using var handle = open.Handle!;
         var path = NativeProcess.GetImagePath(handle);
         var imageName = known ? info.Name : Path.GetFileName(path) ?? $"PID {pid}";
+        var start = NativeProcess.GetStartTime(handle);
+        var cwd = path is null ? null : NativeProcess.GetCurrentDirectory(pid);
 
         return new ProcessDetails
         {
@@ -129,9 +154,63 @@ public sealed class ProcessInfoProvider(TimeProvider? clock = null, ILogger<Proc
             ImageName = imageName,
             ExecutablePath = path,
             CommandLine = NativeProcess.GetCommandLine(handle),
-            StartTime = NativeProcess.GetStartTime(handle),
+            StartTime = start,
             ParentProcessId = known ? info.ParentId : null,
             Access = path is null ? ProcessAccessLevel.Restricted : ProcessAccessLevel.Full,
+            WorkingDirectory = cwd,
+            Project = ProjectResolver.Resolve(cwd),
+            Agent = known ? FindAgent(info.ParentId, names) : null,
+            IsDetached = known && IsParentGone(info.ParentId, start, names),
         };
+    }
+
+    /// <summary>Walks the parent chain (from the process snapshot) to the nearest agent.</summary>
+    internal static AgentSession? FindAgent(int parentId, Dictionary<int, (string Name, int ParentId)> names)
+    {
+        var current = parentId;
+        var seen = new HashSet<int>();
+        for (var depth = 0; depth < 32 && current > 4 && seen.Add(current) && names.TryGetValue(current, out var entry); depth++)
+        {
+            var id = current;
+            if (AgentDetector.Identify(entry.Name, () => CommandLineOf(id)) is { } agent)
+            {
+                return new AgentSession(current, StartTimeOf(current), agent.Name, NativeProcess.GetCurrentDirectory(current), IsRunning: true);
+            }
+
+            current = entry.ParentId;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Windows never re-parents, so a dead parent PID, or one reused by a process that started later,
+    /// means whatever launched this process has gone.
+    /// </summary>
+    private static bool IsParentGone(int parentId, DateTimeOffset? start, Dictionary<int, (string Name, int ParentId)> names)
+    {
+        if (parentId <= 4)
+        {
+            return false;
+        }
+
+        if (!names.ContainsKey(parentId))
+        {
+            return true;
+        }
+
+        return start is { } childStart && StartTimeOf(parentId) is { } parentStart && parentStart > childStart;
+    }
+
+    private static string? CommandLineOf(int pid)
+    {
+        var open = NativeProcess.Open(pid, Kernel32.PROCESS_QUERY_LIMITED_INFORMATION);
+        if (!open.Success)
+        {
+            return null;
+        }
+
+        using var handle = open.Handle!;
+        return NativeProcess.GetCommandLine(handle);
     }
 }

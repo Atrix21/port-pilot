@@ -186,10 +186,10 @@
                                         <StackPanel Orientation="Horizontal" Spacing="7">
                                             <c:Icon Data="{StaticResource Icon.Folder}" Size="14" VerticalAlignment="Center" Foreground="{DynamicResource Text.Tertiary}" />
                                             <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Classes="body" Text="{Binding Name}" />
-                                            <Border Classes="agent-tag" IsVisible="{Binding HasAgent}" ToolTip.Tip="A running Claude Code session started processes here">
+                                            <Border Classes="agent-tag" IsVisible="{Binding HasAgent}" ToolTip.Tip="A running coding agent session started processes here">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                                     <c:Icon Data="{StaticResource Icon.Agent}" Size="12" VerticalAlignment="Center" />
-                                                    <TextBlock Text="Claude" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding AgentName}" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>
@@ -258,7 +258,7 @@
                                         <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Classes="body" Text="{Binding ProcessName}" />
                                             <Grid Margin="0,2,0,0" ColumnDefinitions="Auto,Auto,*" ClipToBounds="True">
-                                                <Border Grid.Column="1" Classes="project-tag" Margin="0,0,6,0" IsVisible="{Binding HasProject}" ToolTip.Tip="{Binding ProjectRoot}">
+                                                <Border Grid.Column="1" Classes="project-tag" Margin="0,0,6,0" IsVisible="{Binding HasProject}" ToolTip.Tip="{Binding ProjectTooltip}">
                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                         <c:Icon Data="{StaticResource Icon.Branch}" Size="11" VerticalAlignment="Center" />
                                                         <TextBlock VerticalAlignment="Center" MaxWidth="180" Text="{Binding ProjectText}" />
@@ -267,7 +267,7 @@
                                                 <Border Classes="agent-tag" Margin="0,0,6,0" Classes.orphaned="{Binding IsOrphaned}" IsVisible="{Binding HasAgent}" ToolTip.Tip="{Binding AgentText}">
                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                         <c:Icon Data="{StaticResource Icon.Agent}" Size="11" VerticalAlignment="Center" />
-                                                        <TextBlock VerticalAlignment="Center" Text="Claude" />
+                                                        <TextBlock VerticalAlignment="Center" Text="{Binding AgentTagText}" />
                                                     </StackPanel>
                                                 </Border>
                                                 <TextBlock Grid.Column="2" VerticalAlignment="Center" Classes="micro mono" Text="{Binding ProcessDetail}" />
@@ -305,13 +305,16 @@
                                                          Classes.new="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=New}"
                                                          Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}"
                                                          Classes.orphaned="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Orphaned}"
+                                                         Classes.detached="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Detached}"
                                                          Classes.connected="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Connected}"
                                                          Classes.transitional="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Transitional}" />
                                             </Panel>
                                             <TextBlock VerticalAlignment="Center" Classes="status" Text="{Binding StatusText}"
                                                        Classes.new="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=New}"
                                                        Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}"
-                                                       Classes.orphaned="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Orphaned}" />
+                                                       Classes.orphaned="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Orphaned}"
+                                                       Classes.detached="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Detached}"
+                                                       ToolTip.Tip="{Binding AgentText}" />
                                         </StackPanel>
                                         <StackPanel Classes="actions" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="2">
                                             <Button Classes="icon-small" Click="OnRowOpen" ToolTip.Tip="{Binding UrlDisplay}" IsVisible="{Binding CanOpenInBrowser}">

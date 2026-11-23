@@ -244,6 +244,34 @@
 
     <!-- ═════════════ Protocol pill ═════════════ -->
 
+    <!-- ═════════════ Project and agent tags ═════════════ -->
+    <Style x:Key="ProjectTag" TargetType="Border">
+        <Setter Property="Padding" Value="5,0,6,1" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource Fill.Subtle}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Hairline}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="AgentTag" TargetType="Border">
+        <Setter Property="Padding" Value="5,0,6,1" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource Accent}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsOrphaned}" Value="True">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Caution}" />
+                <Setter Property="TextElement.Foreground" Value="{DynamicResource Caution}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="ProtocolPill" TargetType="Border">
         <Setter Property="CornerRadius" Value="5" />
         <Setter Property="Padding" Value="6,2,6,2" />
@@ -285,6 +313,13 @@
             <DataTrigger Binding="{Binding Status}" Value="New">
                 <Setter Property="Fill" Value="{DynamicResource Accent}" />
             </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="Orphaned">
+                <Setter Property="Fill" Value="{DynamicResource Caution}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="Detached">
+                <Setter Property="Fill" Value="{DynamicResource Caution}" />
+                <Setter Property="Opacity" Value="0.55" />
+            </DataTrigger>
             <DataTrigger Binding="{Binding Status}" Value="Closed">
                 <Setter Property="Fill" Value="{DynamicResource Negative}" />
             </DataTrigger>
@@ -316,6 +351,10 @@
         <Style.Triggers>
             <DataTrigger Binding="{Binding Status}" Value="New">
                 <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="Orphaned">
+                <Setter Property="Foreground" Value="{DynamicResource Caution}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Status}" Value="Closed">

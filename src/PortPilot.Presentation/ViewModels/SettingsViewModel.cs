@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Windows.Input;
 using PortPilot.App.Mvvm;
 using PortPilot.App.Services;
+using PortPilot.Core.Integrations;
+using PortPilot.Core.Processes;
 using PortPilot.Core.Settings;
 
 namespace PortPilot.App.ViewModels;
@@ -95,6 +97,85 @@ public sealed class SettingsViewModel : ObservableObject
             _startup.SetEnabled(value);
             OnPropertyChanged();
         }
+    }
+
+    // ═════════════ Agents ═════════════
+
+    /// <summary>Extra agent executables, comma-separated, on top of the built-in list.</summary>
+    public string CustomAgentsText
+    {
+        get => string.Join(", ", _get().CustomAgentNames);
+        set
+        {
+            var names = (value ?? "").Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().ToArray();
+            AgentDetector.Configure(names);
+            Apply(s => s with { CustomAgents = string.Join(", ", names) });
+        }
+    }
+
+    public static string BuiltInAgentsText => string.Join(", ", AgentDetector.BuiltIn.Select(a => a.Name));
+
+    /// <summary>The terminal app that the hook, watcher and MCP server run; null when it isn't installed alongside.</summary>
+    public string? CliPath { get; } = AgentIntegration.CliPath;
+
+    public bool CanIntegrate => CliPath is not null;
+
+    public string IntegrationUnavailableText => "The terminal app (portpilot) wasn't found next to PortPilot, so these can't be set up from here.";
+
+    private string? _integrationMessage;
+
+    public string? IntegrationMessage
+    {
+        get => _integrationMessage;
+        private set => Set(ref _integrationMessage, value);
+    }
+
+    public bool HookInstalled
+    {
+        get => AgentIntegration.IsHookInstalled;
+        set => RunIntegration(() => value ? AgentIntegration.InstallHook(CliPath!, HookStopsLeftovers) : AgentIntegration.UninstallHook());
+    }
+
+    public bool HookStopsLeftovers
+    {
+        get => AgentIntegration.HookStopsLeftovers;
+        set
+        {
+            if (HookInstalled || value)
+            {
+                RunIntegration(() => AgentIntegration.InstallHook(CliPath!, value));
+            }
+        }
+    }
+
+    public bool WatcherInstalled
+    {
+        get => AgentIntegration.IsWatcherInstalled;
+        set => RunIntegration(() => value ? AgentIntegration.InstallWatcher(CliPath!) : AgentIntegration.UninstallWatcher());
+    }
+
+    public bool McpRegistered
+    {
+        get => AgentIntegration.IsMcpRegistered;
+        set => RunIntegration(() => value ? AgentIntegration.RegisterMcp(CliPath!) : AgentIntegration.UnregisterMcp());
+    }
+
+    /// <summary>systemctl, schtasks and claude can take a second, so they run off the UI thread.</summary>
+    private void RunIntegration(Func<IntegrationResult> action)
+    {
+        if (!CanIntegrate)
+        {
+            return;
+        }
+
+        IntegrationMessage = "Working…";
+        Task.Run(action).ContinueWith(
+            t =>
+            {
+                IntegrationMessage = t.IsCompletedSuccessfully ? t.Result.Message : t.Exception?.GetBaseException().Message;
+                OnPropertiesChanged(nameof(HookInstalled), nameof(HookStopsLeftovers), nameof(WatcherInstalled), nameof(McpRegistered));
+            },
+            TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     /// <summary>Raises change notifications after an external change (e.g. the title bar theme toggle).</summary>

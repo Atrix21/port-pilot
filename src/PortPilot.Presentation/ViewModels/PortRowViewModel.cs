@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using PortPilot.App.Mvvm;
 using PortPilot.App.Services;
 using PortPilot.Core.Model;
+using PortPilot.Core.Processes;
 
 namespace PortPilot.App.ViewModels;
 
@@ -15,6 +16,7 @@ public enum RowStatus
     Transitional,
     New,
     Orphaned,
+    Detached,
     Closed,
 }
 
@@ -124,6 +126,20 @@ public sealed class PortRowViewModel : ObservableObject
 
     public bool HasAgent => Agent is not null;
 
+    /// <summary>"Claude", "Codex", "Gemini", …</summary>
+    public string? AgentShortName => Agent is { } a ? AgentDetector.ShortNameFor(a.Name) : null;
+
+    /// <summary>The row tag: "Claude", or "Claude · ended" once its session has gone.</summary>
+    public string? AgentTagText => AgentShortName is { } name ? (Agent!.IsRunning ? name : $"{name} · ended") : null;
+
+    /// <summary>
+    /// No agent history, but it outlived whatever started it and is running inside a project: very often a
+    /// dev server someone forgot. Shown, never stopped automatically.
+    /// </summary>
+    public bool IsPossiblyLeftBehind => !HasAgent && _entry.Process.IsDetached && HasProject && !IsClosed;
+
+    public string? ProjectTooltip => Project is { } p ? $"{p.DisplayText}{(p.IsWorktree ? " (worktree)" : "")}\n{p.Root}" : null;
+
     /// <summary>Still running after the agent session that started it has ended.</summary>
     public bool IsOrphaned => _entry.Process.IsOrphaned && !IsClosed;
 
@@ -132,7 +148,7 @@ public sealed class PortRowViewModel : ObservableObject
         null => null,
         { IsRunning: true } a => $"Started by {a.Name} (PID {a.ProcessId.ToString(CultureInfo.InvariantCulture)})",
         { } a => $"Left behind by a {a.Name} session that has ended",
-    };
+    } ?? (IsPossiblyLeftBehind ? "Its parent process has exited, so it may have been left behind. PortPilot has no record of what started it." : null);
 
     // ── Endpoint ──
     public bool IsTcp => _entry.Binding.Protocol == TransportProtocol.Tcp;
@@ -184,6 +200,7 @@ public sealed class PortRowViewModel : ObservableObject
     public RowStatus Status => IsClosed ? RowStatus.Closed
         : IsNew ? RowStatus.New
         : IsOrphaned ? RowStatus.Orphaned
+        : IsPossiblyLeftBehind ? RowStatus.Detached
         : State switch
         {
             ConnectionState.Listening => RowStatus.Listening,
@@ -197,6 +214,7 @@ public sealed class PortRowViewModel : ObservableObject
         RowStatus.Closed => "Closed",
         RowStatus.New => "New",
         RowStatus.Orphaned => "Left behind",
+        RowStatus.Detached => "Detached",
         _ => StateText,
     };
 
@@ -236,7 +254,7 @@ public sealed class PortRowViewModel : ObservableObject
         {
             if (Set(ref _isClosed, value))
             {
-                OnPropertiesChanged(nameof(Status), nameof(StatusText), nameof(StateText), nameof(CanOpenInBrowser), nameof(IsOrphaned));
+                OnPropertiesChanged(nameof(Status), nameof(StatusText), nameof(StateText), nameof(CanOpenInBrowser), nameof(IsOrphaned), nameof(IsPossiblyLeftBehind));
             }
         }
     }
