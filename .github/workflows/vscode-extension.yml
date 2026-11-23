@@ -28,6 +28,10 @@ on:
       from-run:
         description: Publish the VSIX files built by this earlier run (its ID) instead of building again
         default: ''
+      diagnose:
+        description: Only report each published version's Marketplace status (validation results); build and publish nothing
+        type: boolean
+        default: false
   push:
     tags: ['vscode-v*']
 
@@ -37,7 +41,7 @@ permissions:
 
 jobs:
   package:
-    if: ${{ !inputs.from-run }}
+    if: ${{ !inputs.from-run && !inputs.diagnose }}
     strategy:
       fail-fast: true
       matrix:
@@ -95,7 +99,7 @@ jobs:
   publish:
     needs: package
     # Runs after a fresh build, or straight away when publishing an earlier run's files.
-    if: ${{ !cancelled() && (needs.package.result == 'success' || (needs.package.result == 'skipped' && inputs.from-run)) }}
+    if: ${{ !cancelled() && !inputs.diagnose && (needs.package.result == 'success' || (needs.package.result == 'skipped' && inputs.from-run)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # attach to the GitHub release
@@ -149,3 +153,43 @@ jobs:
             auth=""
           fi
           for f in vsix/*.vsix; do npx --yes ovsx@^1.4.0 publish "$f" --skip-duplicate $PRE_RELEASE $auth; done
+
+  # What the Marketplace says about each published version and platform, including validation
+  # results that only the publisher can see. Authenticates the same way as publishing (OIDC).
+  diagnose:
+    if: ${{ inputs.diagnose }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Marketplace status
+        env:
+          PUBLISHER: Atrix21
+          EXTENSION: portpilot-dev
+        run: |
+          node - <<'JS'
+          const env = process.env;
+          const oidcUrl = new URL(env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          oidcUrl.searchParams.set("audience", "marketplace.visualstudio.com");
+          const oidc = await (await fetch(oidcUrl, { headers: { Authorization: `Bearer ${env.ACTIONS_ID_TOKEN_REQUEST_TOKEN}` } })).json();
+          const exchange = await fetch("https://marketplace.visualstudio.com/_apis/gallery/token?api-version=7.2-preview.1", {
+            method: "POST",
+            headers: { Authorization: `FederatedToken ${oidc.value}`, "Content-Type": "application/json", Accept: "application/json", "User-Agent": "vsce" },
+            body: JSON.stringify({ publisherName: env.PUBLISHER }),
+          });
+          const { credential } = await exchange.json();
+          const auth = "Basic " + Buffer.from(`OAuth:${credential}`).toString("base64");
+          // IncludeVersions | IncludeFiles | IncludeVersionProperties | IncludeInstallationTargets | IncludeAssetUri | IncludeStatistics
+          const url = `https://marketplace.visualstudio.com/_apis/gallery/publishers/${env.PUBLISHER}/extensions/${env.EXTENSION}?flags=${1 | 2 | 16 | 64 | 128 | 256}&api-version=7.2-preview.1`;
+          const response = await fetch(url, { headers: { Authorization: auth, Accept: "application/json" } });
+          const ext = await response.json();
+          console.log(`${response.status} ${ext.displayName ?? ""} flags=${ext.flags}`);
+          for (const v of ext.versions ?? []) {
+            console.log(`\n${v.version} ${v.targetPlatform ?? "universal"}  flags=${v.flags}  updated=${v.lastUpdated}`);
+            if (v.validationResultMessage) console.log(`  validation: ${v.validationResultMessage}`);
+            for (const p of v.properties ?? []) {
+              if (/valid|scan|error|reject|status|message/i.test(p.key)) console.log(`  ${p.key} = ${p.value}`);
+            }
+          }
+          JS
+
