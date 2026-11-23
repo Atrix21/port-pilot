@@ -78,10 +78,19 @@ public sealed class AppAnalyzer
     private Dictionary<int, (int Parent, string Name)> _table = [];
     private Dictionary<int, List<int>> _children = [];
     private DateTimeOffset _tableRead = DateTimeOffset.MinValue;
+    private readonly HashSet<int> _unreadable = [];
 
     public IReadOnlyList<AppInfo> Analyze(IReadOnlyList<PortEntry> entries)
     {
-        RefreshTable();
+        // The table is reused for a few seconds, but a process that started since must be in it to be grouped.
+        // Each unknown process forces at most one refresh, so one that can't be read never makes every scan pay.
+        var unknown = entries.Where(e => e.ProcessId > 0 && !_table.ContainsKey(e.ProcessId) && !_unreadable.Contains(e.ProcessId)).Select(e => e.ProcessId).ToList();
+        RefreshTable(force: unknown.Count > 0);
+        _unreadable.UnionWith(unknown.Where(pid => !_table.ContainsKey(pid)));
+        if (_unreadable.Count > 256)
+        {
+            _unreadable.Clear();
+        }
 
         // Endpoint processes → their app root. Sockets whose owner can't be seen (other users' services)
         // become one "System services" app rather than a line each.
@@ -141,10 +150,10 @@ public sealed class AppAnalyzer
         return apps;
     }
 
-    private void RefreshTable()
+    private void RefreshTable(bool force)
     {
         var now = DateTimeOffset.UtcNow;
-        if (now - _tableRead < TableMaxAge)
+        if (!force && now - _tableRead < TableMaxAge)
         {
             return;
         }
