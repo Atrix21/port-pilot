@@ -172,14 +172,20 @@ jobs:
           git add Casks/portpilot.rb
           git diff --cached --quiet || (git commit -m "Homebrew: PortPilot $version" && git push)
 
-  # VS Code / Cursor / Windsurf / VSCodium extension: one VSIX per platform, each with the native CLI inside.
+  # VS Code / Cursor / Windsurf / VSCodium extension. Started as its own run (not workflow_call) so the
+  # Marketplace's Trusted Publishing policy, which names vscode-extension.yml, matches the OIDC token.
   vscode-extension:
     needs: release
-    uses: ./.github/workflows/vscode-extension.yml
-    with:
-      version: ${{ github.ref_name }}
-      release-tag: ${{ github.ref_name }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Start the extension workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ github.ref_name }}'
+          gh workflow run vscode-extension.yml --repo '${{ github.repository }}' --ref main -f version="${tag#v}" -f release-tag="$tag"
 
   # IntelliJ IDEA, WebStorm, PyCharm, GoLand, Rider, … (one plugin for all of them).
   jetbrains-plugin:

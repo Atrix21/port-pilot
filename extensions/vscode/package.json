@@ -3,7 +3,7 @@
   "displayName": "PortPilot",
   "description": "What's listening on your ports, which project and coding agent it belongs to, whether it's healthy, and what was left behind. Plus an MCP server so agents can ask.",
   "version": "1.0.0",
-  "publisher": "atrix21",
+  "publisher": "Atrix21",
   "license": "MIT",
   "icon": "media/icon.png",
   "repository": {
