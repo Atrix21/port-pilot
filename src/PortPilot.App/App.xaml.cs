@@ -118,6 +118,8 @@ public partial class App : Application, IAppShell
                 ? new PortChangeTracker { NewWindow = TimeSpan.FromMinutes(10), ClosedLinger = TimeSpan.FromMinutes(10) }
                 : null);
 
+        _viewModel.Overview.CheckHealth = !(Options.Demo || Options.IsScreenshotRun);
+        _viewModel.Inspector.HealthChecksEnabled = !(Options.Demo || Options.IsScreenshotRun);
         _window = new MainWindow(_viewModel, theme);
         theme.TransitionHost = _window;
         MainWindow = _window;

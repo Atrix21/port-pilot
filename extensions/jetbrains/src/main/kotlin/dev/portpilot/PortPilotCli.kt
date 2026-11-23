@@ -62,6 +62,45 @@ data class PortEntry(
     }
 }
 
+/** An app, as printed by `portpilot apps --json`: a dev server with its workers, a database, … */
+data class AppEntry(
+    val key: String = "",
+    val name: String = "",
+    val kind: String? = null,
+    val pid: Int = 0,
+    val pids: List<Int> = emptyList(),
+    val processes: Int = 0,
+    val cpu: Double = 0.0,
+    val memory: Long = 0,
+    val ports: List<Int> = emptyList(),
+    val started: String? = null,
+    val commandLine: String? = null,
+    val workingDirectory: String? = null,
+    val project: String? = null,
+    val branch: String? = null,
+    val agent: String? = null,
+    val agentRunning: Boolean? = null,
+    val leftBehind: Boolean = false,
+    val tooling: Boolean = false,
+    val system: Boolean = false,
+) {
+    val portsText: String get() = if (ports.isEmpty()) "" else ":${ports[0]}" + if (ports.size > 1) " +${ports.size - 1}" else ""
+    val memoryText: String get() = when {
+        memory <= 0 -> "—"
+        memory < 1L shl 30 -> "${memory shr 20} MB"
+        else -> "%.1f GB".format(memory / (1L shl 30).toDouble())
+    }
+    val cpuText: String get() = if (memory <= 0) "—" else "%.1f%%".format(cpu)
+    val status: String get() = if (leftBehind) "Left behind" else "Running"
+    val agentText: String get() = agent?.let { (if (it == "Claude Code") "Claude" else it) + if (agentRunning == false) " · ended" else "" } ?: ""
+
+    fun belongsTo(project: com.intellij.openapi.project.Project): Boolean {
+        val base = project.basePath?.replace('\\', '/')?.trimEnd('/') ?: return false
+        val dir = workingDirectory?.replace('\\', '/')?.trimEnd('/') ?: return false
+        return dir == base || dir.startsWith("$base/") || base.startsWith("$dir/")
+    }
+}
+
 data class ProjectRef(val name: String = "", val branch: String? = null, val root: String = "", val worktree: Boolean = false)
 
 data class AgentRef(val name: String = "", val pid: Int = 0, val running: Boolean = true)
@@ -95,6 +134,12 @@ object PortPilotCli {
     fun list(): List<PortEntry> {
         val json = run("list", "--json") ?: return emptyList()
         return gson.fromJson(json, Array<PortEntry>::class.java)?.toList() ?: emptyList()
+    }
+
+    /** Apps with CPU and memory; the CLI takes two samples 300 ms apart. */
+    fun apps(): List<AppEntry> {
+        val json = run("apps", "--json") ?: return emptyList()
+        return gson.fromJson(json, Array<AppEntry>::class.java)?.toList() ?: emptyList()
     }
 
     fun stop(pid: Int): String = run("kill", "pid:$pid", "-y")?.trim().orEmpty()

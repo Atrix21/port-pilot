@@ -446,7 +446,7 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="PageTitle" Style="{StaticResource Text.Display}" Text="Listening ports" />
+                <TextBlock x:Name="PageTitle" Style="{StaticResource Text.Display}" Text="{Binding PageTitle}" />
                 <TextBlock Margin="0,3,0,0" Style="{StaticResource Text.Caption}" Text="{Binding HeaderSubtitle}" />
             </StackPanel>
 
@@ -526,11 +526,21 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource Segmented.Track}">
+            <Border Margin="0,0,12,0" Style="{StaticResource Segmented.Track}">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Content="Overview" GroupName="Mode" IsChecked="{Binding IsOverview}" Style="{StaticResource Segment}" ToolTip="Apps grouped by project, with CPU and memory" />
+                    <RadioButton Command="{Binding ShowPortsCommand}" Content="All ports" GroupName="Mode" IsChecked="{Binding IsPortsView, Mode=OneWay}" Style="{StaticResource Segment}" ToolTip="Every endpoint, with filters" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding Overview.Totals}" Visibility="{Binding IsOverview, Converter={StaticResource VisibleWhen}}" />
+
+            <Border Grid.Column="1" Style="{StaticResource Segmented.Track}" Visibility="{Binding IsPortsView, Converter={StaticResource VisibleWhen}}">
                 <StackPanel Orientation="Horizontal">
                     <RadioButton AutomationProperties.Name="All protocols"
                                  Content="All"
@@ -553,7 +563,7 @@
                 </StackPanel>
             </Border>
 
-            <StackPanel Grid.Column="1" Margin="12,0,0,0" Orientation="Horizontal">
+            <StackPanel Grid.Column="2" Margin="12,0,0,0" Orientation="Horizontal" Visibility="{Binding IsPortsView, Converter={StaticResource VisibleWhen}}">
                 <ToggleButton Content="Listening only"
                               IsChecked="{Binding ListeningOnly}"
                               Style="{StaticResource Chip}"
@@ -567,7 +577,7 @@
                               ui:Ui.Icon="{StaticResource Icon.Sparkle}" />
             </StackPanel>
 
-            <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal">
+            <StackPanel Grid.Column="4" VerticalAlignment="Center" Orientation="Horizontal">
                 <TextBlock Margin="0,0,14,0" VerticalAlignment="Center" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding CountText}" Visibility="{Binding IsFiltered, Converter={StaticResource VisibleWhen}}" />
                 <Button x:Name="RefreshButton"
                         AutomationProperties.Name="Refresh"
@@ -598,7 +608,7 @@
         </Grid>
 
         <!-- ═════════════ Projects ═════════════ -->
-        <Grid Grid.Row="3" Margin="28,0,28,14" Visibility="{Binding HasProjects, Converter={StaticResource VisibleWhen}}">
+        <Grid Grid.Row="3" Margin="28,0,28,14" Visibility="{Binding ShowProjectsBar, Converter={StaticResource VisibleWhen}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -702,7 +712,155 @@
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Grid x:Name="TableArea" SizeChanged="OnTableSizeChanged">
+            <!-- Overview: apps, not ports -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Visibility="{Binding IsOverview, Converter={StaticResource VisibleWhen}}">
+                <StackPanel Margin="28,0,28,28">
+                    <Border Margin="0,0,0,20" Padding="16,12" Background="{DynamicResource Caution.Soft}" BorderBrush="{DynamicResource Caution}" BorderThickness="1" CornerRadius="12"
+                            Visibility="{Binding Overview.HasAttention, Converter={StaticResource VisibleWhen}}">
+                        <StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <ui:Icon Margin="0,0,8,0" VerticalAlignment="Center" Data="{StaticResource Icon.Alert}" Foreground="{DynamicResource Caution}" Size="15" />
+                                <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Label}" Foreground="{DynamicResource Text.Primary}" Text="Needs attention" />
+                            </StackPanel>
+                            <ItemsControl Focusable="False" ItemsSource="{Binding Overview.Attention}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:AttentionViewModel}">
+                                        <Grid Margin="0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock VerticalAlignment="Center" Style="{StaticResource Text.Body}" Text="{Binding Text}" TextTrimming="None" TextWrapping="Wrap" />
+                                            <Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Command="{Binding Data.AttentionActionCommand, Source={StaticResource Vm}}" CommandParameter="{Binding}" Content="{Binding ActionText}" Style="{StaticResource Button.Link}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Text="Nothing is listening. Start a dev server, database or any service and it appears here." TextWrapping="Wrap"
+                               Visibility="{Binding Overview.IsEmpty, Converter={StaticResource VisibleWhen}}" />
+
+                    <ItemsControl Focusable="False" ItemsSource="{Binding Overview.Groups}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:AppGroupViewModel}">
+                                <StackPanel Margin="0,0,0,20">
+                                    <Grid Margin="2,0,2,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:Icon VerticalAlignment="Center" Data="{StaticResource Icon.Folder}" Foreground="{DynamicResource Text.Tertiary}" Size="15" />
+                                        <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center" Style="{StaticResource Text.Title}" Text="{Binding Name}" />
+                                        <StackPanel Grid.Column="2" Margin="10,1,0,0" VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding HasBranches, Converter={StaticResource VisibleWhen}}">
+                                            <ui:Icon Margin="0,0,4,0" VerticalAlignment="Center" Data="{StaticResource Icon.Branch}" Foreground="{DynamicResource Text.Tertiary}" Size="12" />
+                                            <TextBlock VerticalAlignment="Center" FontFamily="{StaticResource Font.Mono}" Style="{StaticResource Text.Micro}" Text="{Binding Branches}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="4" VerticalAlignment="Center" Style="{StaticResource Text.Caption}" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding Summary}" />
+                                    </Grid>
+                                    <Border Background="{DynamicResource Bg.Panel}" BorderBrush="{DynamicResource Stroke.Hairline}" BorderThickness="1" CornerRadius="12">
+                                        <ItemsControl Focusable="False" ItemsSource="{Binding Apps}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:AppViewModel}">
+                                                    <Button Command="{Binding Data.InspectAppCommand, Source={StaticResource Vm}}" CommandParameter="{Binding}" Cursor="Hand" FocusVisualStyle="{x:Null}">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="Bg" Background="Transparent" CornerRadius="10">
+                                                                    <ContentPresenter />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Bg" Property="Background" Value="{DynamicResource Row.Hover}" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                        <Grid MinHeight="56">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="90" />
+                                                                <ColumnDefinition Width="70" />
+                                                                <ColumnDefinition Width="70" />
+                                                                <ColumnDefinition Width="120" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Ellipse Width="7" Height="7" Margin="18,0,14,0" VerticalAlignment="Center">
+                                                                <Ellipse.Style>
+                                                                    <Style TargetType="Ellipse">
+                                                                        <Setter Property="Fill" Value="{DynamicResource Positive}" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSystem}" Value="True">
+                                                                                <Setter Property="Fill" Value="{DynamicResource Text.Tertiary}" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsUnhealthy}" Value="True">
+                                                                                <Setter Property="Fill" Value="{DynamicResource Negative}" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsOrphaned}" Value="True">
+                                                                                <Setter Property="Fill" Value="{DynamicResource Caution}" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Ellipse.Style>
+                                                            </Ellipse>
+                                                            <StackPanel Grid.Column="1" Margin="0,10" VerticalAlignment="Center">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource Text.Body}" Text="{Binding Name}" />
+                                                                    <Border Margin="8,0,0,0" Style="{StaticResource AgentTag}" Visibility="{Binding HasAgent, Converter={StaticResource VisibleWhen}}">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <ui:Icon Margin="0,0,4,0" VerticalAlignment="Center" Data="{StaticResource Icon.Agent}" Size="11" />
+                                                                            <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Text="{Binding AgentTagText}" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <StackPanel Margin="0,3,0,0" Orientation="Horizontal">
+                                                                    <TextBlock FontFamily="{StaticResource Font.Mono}" Style="{StaticResource Text.Micro}" Text="{Binding PortsText}" ToolTip="{Binding AllPortsText}" />
+                                                                    <TextBlock Margin="10,0,0,0" Style="{StaticResource Text.Micro}" Text="{Binding Kind}" Visibility="{Binding HasKind, Converter={StaticResource VisibleWhen}}" />
+                                                                    <TextBlock Margin="10,0,0,0" Style="{StaticResource Text.Micro}" Text="{Binding ProcessesText}" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Style="{StaticResource Text.Mono}" Text="{Binding MemoryText}" ToolTip="Memory, including child processes" />
+                                                            <TextBlock Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource Text.Secondary}" Style="{StaticResource Text.Mono}" Text="{Binding CpuText}" ToolTip="CPU, % of one core" />
+                                                            <TextBlock Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Center" Style="{StaticResource Text.Micro}" Text="{Binding UptimeText}" />
+                                                            <TextBlock Grid.Column="5" Margin="20,0,0,0" VerticalAlignment="Center" Text="{Binding StatusText}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsUnhealthy}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Negative}" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsOrphaned}" Value="True">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource Caution}" />
+                                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <StackPanel Grid.Column="6" Margin="12,0" VerticalAlignment="Center" Orientation="Horizontal">
+                                                                <Button Command="{Binding Data.OpenAppCommand, Source={StaticResource Vm}}" CommandParameter="{Binding}" Style="{StaticResource Button.IconSmall}" ToolTip="Open in browser"
+                                                                        Visibility="{Binding IsHttp, Converter={StaticResource VisibleWhen}}" ui:Ui.Icon="{StaticResource Icon.External}" />
+                                                                <Button Margin="2,0,0,0" Command="{Binding Data.StopAppCommand, Source={StaticResource Vm}}" CommandParameter="{Binding}" Style="{StaticResource Button.IconSmall}" ToolTip="Stop this app and its processes"
+                                                                        Visibility="{Binding IsSystem, Converter={StaticResource HiddenWhen}}" ui:Ui.Icon="{StaticResource Icon.Power}" ui:Ui.IsDestructive="True" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Grid x:Name="TableArea" SizeChanged="OnTableSizeChanged" Visibility="{Binding IsPortsView, Converter={StaticResource VisibleWhen}}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="34" />
                     <RowDefinition Height="*" />

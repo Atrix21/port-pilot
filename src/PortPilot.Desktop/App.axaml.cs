@@ -99,6 +99,8 @@ public sealed partial class App : Application, IAppShell
             JsonFileLoggerFactory.DefaultDirectory,
             JsonSettingsStore.DefaultPath);
 
+        _viewModel.Overview.CheckHealth = !options.Demo;
+        _viewModel.Inspector.HealthChecksEnabled = !options.Demo;
         _window = new MainWindow(_viewModel);
         _window.Closing += OnWindowClosing;
         _window.PropertyChanged += (_, e) =>

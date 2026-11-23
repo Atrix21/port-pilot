@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- **Overview: apps, not ports.** The Ports view now shows apps by default: a dev server with its workers is one line, named the way you'd say it (*Vite dev server*, *Django dev server*, *npm run dev*, *PostgreSQL*), with memory and CPU for the whole process family, uptime, and the agent that started it. Each project shows its totals, and **Needs attention** says what's wrong in plain words. Switch to *All ports* from the view's title bar (`portpilot.view`).
+- **Stop App** stops an app's whole process family: workers first, then the process that started them.
+- **Lighter.** One long-lived engine process streams scans while the window is focused, instead of a new process every few seconds, and it exits when the window loses focus.
+
 ## 1.1.0
 
 - **Start Again.** When a dev server in this workspace stops, a toast offers to start it again: same command, same folder, in a terminal. Stopped servers are listed under *Recently Stopped*.

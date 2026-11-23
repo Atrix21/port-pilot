@@ -74,6 +74,13 @@ switch (command)
         return Logs(rest);
     case "health":
         return await HealthAsync(rest);
+    case "apps" or "top":
+        return await AppsCommand.RunAsync(flags.Contains("--json"), all, flags.Contains("--tooling"));
+    case "stream":
+        return await AppsCommand.StreamAsync(
+            rest.FirstOrDefault() is { } interval && double.TryParse(interval, CultureInfo.InvariantCulture, out var seconds) ? seconds : 3,
+            flags.Contains("--apps"),
+            all);
     case "projects" or "p":
         return Projects(all);
     case "cleanup" or "clean":
@@ -110,7 +117,7 @@ static int List(string query, bool all, bool dev, bool json)
         w.WriteStartArray();
         foreach (var e in entries)
         {
-            WriteJson(w, e);
+            JsonOut.Entry(w, e);
         }
 
         w.WriteEndArray();
@@ -455,56 +462,6 @@ static async Task<int> CleanupAsync(bool yes)
     return stopped == orphans.Count ? 0 : 1;
 }
 
-static void WriteJson(Utf8JsonWriter w, PortEntry e)
-{
-    var p = e.Process;
-    w.WriteStartObject();
-    w.WriteNumber("port", e.Port);
-    w.WriteString("protocol", Format.Protocol(e.Binding));
-    w.WriteString("address", e.Binding.LocalAddress.ToString());
-    w.WriteString("state", e.Binding.State.ToString());
-    if (e.Binding.RemoteAddress is { } remote)
-    {
-        w.WriteString("remoteAddress", remote.ToString());
-        w.WriteNumber("remotePort", e.Binding.RemotePort);
-    }
-
-    w.WriteNumber("pid", e.ProcessId);
-    w.WriteString("process", p.ImageName);
-    w.WriteString("executable", p.ExecutablePath);
-    w.WriteString("commandLine", p.CommandLine);
-    if (p.StartTime is { } start)
-    {
-        w.WriteString("started", start);
-    }
-
-    w.WriteString("access", p.Access.ToString());
-    w.WriteString("workingDirectory", p.WorkingDirectory);
-    if (p.Project is { } project)
-    {
-        w.WriteStartObject("project");
-        w.WriteString("name", project.Name);
-        w.WriteString("branch", project.Branch);
-        w.WriteString("root", project.Root);
-        w.WriteBoolean("worktree", project.IsWorktree);
-        w.WriteEndObject();
-    }
-
-    if (p.Agent is { } agent)
-    {
-        w.WriteStartObject("agent");
-        w.WriteString("name", agent.Name);
-        w.WriteNumber("pid", agent.ProcessId);
-        w.WriteBoolean("running", agent.IsRunning);
-        w.WriteEndObject();
-    }
-
-    w.WriteBoolean("orphaned", p.IsOrphaned);
-    w.WriteBoolean("tooling", PortPilot.Core.Processes.ToolingDetector.IsTooling(p));
-    w.WriteString("service", e.Known?.Name);
-    w.WriteEndObject();
-}
-
 static string Help() => """
     PortPilot: who is on port 3000, and how to make them leave.
 
@@ -514,6 +471,8 @@ static string Help() => """
       portpilot who <port>           explain what holds a port (also: portpilot <port>)
       portpilot kill <port>          stop whatever holds a port   -y skip confirmation
       portpilot kill pid:<pid>       stop a process by PID
+      portpilot apps                 apps, not ports: what each project runs, with CPU and memory   --json, --tooling
+      portpilot stream [seconds]     one JSON line per scan, for editors   --apps adds apps with CPU and memory
       portpilot projects             what each git project is running, and which agent session started it
       portpilot cleanup              stop what ended agent sessions left running   -y skip confirmation
       portpilot health [port…]       is it actually answering? (all dev servers when no port is given)

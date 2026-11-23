@@ -136,6 +136,23 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ShowProjectCommand = new RelayCommand<ProjectGroupViewModel>(ShowProject);
         CleanUpOrphansCommand = new AsyncRelayCommand<ProjectGroupViewModel>(p => CleanUpOrphansAsync(p), p => p.HasOrphans, OnCommandError);
         CleanUpAllOrphansCommand = new RelayCommand(() => _ = CleanUpOrphansAsync(null), () => HasOrphans);
+        ShowOverviewCommand = new RelayCommand(() => IsOverview = true);
+        ShowPortsCommand = new RelayCommand(() => IsOverview = false);
+        InspectAppCommand = new RelayCommand<AppViewModel>(InspectApp);
+        OpenAppCommand = new RelayCommand<AppViewModel>(a => OpenUrl(a.Url, $"localhost:{a.Info.Primary.Port.ToString(CultureInfo.InvariantCulture)}"), a => a.IsHttp);
+        StopAppCommand = new AsyncRelayCommand<AppViewModel>(StopAppAsync, a => !a.IsSystem, OnCommandError);
+        AttentionActionCommand = new RelayCommand<AttentionViewModel>(item =>
+        {
+            if (item.Kind == AttentionKind.LeftBehind)
+            {
+                StopAppCommand.Execute(item.App);
+            }
+            else
+            {
+                InspectApp(item.App);
+            }
+        });
+        _isOverview = settings.OverviewMode;
         CloseInspectorCommand = new RelayCommand(() => SelectedRow = null);
         RestartAsAdminCommand = new RelayCommand(RestartAsAdmin, () => !IsElevated);
         QuitCommand = new RelayCommand(_app.Quit);
@@ -260,6 +277,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ProjectGroupViewModel> Projects { get; } = [];
 
     public bool HasProjects => Projects.Count > 0;
+
+    /// <summary>Project cards belong to the port table; the overview already groups by project.</summary>
+    public bool ShowProjectsBar => HasProjects && !_isOverview;
 
     private int _orphanCount;
 
@@ -466,6 +486,108 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// <summary>Stops every process finished agent sessions left behind, in all projects.</summary>
     public ICommand CleanUpAllOrphansCommand { get; }
 
+    // ═════════════ Overview: apps, not ports ═════════════
+
+    private bool _isOverview;
+    private bool _windowVisible = true;
+
+    /// <summary>Apps grouped by project, with CPU and memory, instead of the full port table.</summary>
+    public OverviewViewModel Overview { get; } = new();
+
+    public bool IsOverview
+    {
+        get => _isOverview;
+        set
+        {
+            if (Set(ref _isOverview, value))
+            {
+                OnPropertiesChanged(nameof(IsPortsView), nameof(ShowProjectsBar), nameof(PageTitle));
+                UpdateSettings(s => s with { OverviewMode = value });
+                UpdateAppAnalysis();
+            }
+        }
+    }
+
+    public bool IsPortsView => !_isOverview;
+
+    public string PageTitle => _isOverview ? "What's running" : "Listening ports";
+
+    public ICommand ShowOverviewCommand { get; }
+
+    public ICommand ShowPortsCommand { get; }
+
+    public ICommand InspectAppCommand { get; }
+
+    public ICommand OpenAppCommand { get; }
+
+    public ICommand StopAppCommand { get; }
+
+    public ICommand AttentionActionCommand { get; }
+
+    /// <summary>App grouping and CPU/memory sampling run only while the overview is on screen.</summary>
+    private void UpdateAppAnalysis()
+    {
+        _monitor.IncludeApps = _isOverview && _windowVisible;
+        if (_monitor.IncludeApps)
+        {
+            Overview.RecheckSoon();
+        }
+    }
+
+    private void InspectApp(AppViewModel app)
+    {
+        var key = app.Info.Primary.Key;
+        if (_rowsByKey.TryGetValue(key, out var row))
+        {
+            SelectedRow = row;
+        }
+    }
+
+    private void OpenUrl(string url, string display)
+    {
+        var opened = _shell.OpenUrl(url);
+        ShowToast(opened ? $"Opened {display}" : "Couldn't open the browser", opened ? ToastKind.Success : ToastKind.Error);
+    }
+
+    /// <summary>Stops a whole app: its workers first, then the process that started them.</summary>
+    private async Task StopAppAsync(AppViewModel app)
+    {
+        var info = app.Info;
+        var ports = info.Endpoints.Select(e => e.Port).Distinct().Order().ToList();
+        var dialog = new ConfirmDialogViewModel
+        {
+            Title = $"Stop {info.Name}?",
+            Message = $"It is listening on {(ports.Count == 1 ? "port" : "ports")} {string.Join(", ", ports.Take(8))}{(ports.Count > 8 ? "…" : "")}{(info.ProcessIds.Count > 1 ? $", with {info.ProcessIds.Count} processes in all" : "")}. Any unsaved work in it will be lost.",
+            Detail = info.CommandLine is { Length: > 0 } c ? (c.Length > 120 ? c[..120] + "…" : c) : null,
+            Note = info.IsOrphaned ? $"Left running by a {info.Agent?.Name ?? "coding agent"} session that has ended." : null,
+            ConfirmText = "Stop",
+            IsDestructive = true,
+        };
+
+        Dialog = dialog;
+        var confirmed = await dialog.Result;
+        Dialog = null;
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var starts = info.Endpoints.GroupBy(e => e.ProcessId).ToDictionary(g => g.Key, g => g.First().Process.StartTime);
+        var failed = 0;
+        foreach (var pid in info.ProcessIds.Reverse().Where(p => p > 0))
+        {
+            var result = await _terminator.TerminateAsync(pid, starts.GetValueOrDefault(pid));
+            if (!result.Succeeded && result.Outcome != TerminationOutcome.Protected)
+            {
+                failed++;
+            }
+        }
+
+        ShowToast(failed == 0 ? $"Stopped {info.Name}" : $"Stopped {info.Name}, but {failed} process{(failed == 1 ? "" : "es")} refused", failed == 0 ? ToastKind.Success : ToastKind.Warning);
+        Overview.RecheckSoon();
+        _monitor.RefreshNow();
+    }
+
     public ICommand CloseInspectorCommand { get; }
 
     public ICommand RestartAsAdminCommand { get; }
@@ -496,11 +618,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     // ═════════════ Lifecycle ═════════════
 
-    public void Start() => _monitor.Start();
+    public void Start()
+    {
+        UpdateAppAnalysis();
+        _monitor.Start();
+    }
 
     /// <summary>Called by the shell when the window is shown or hidden so background scans can relax.</summary>
     public void OnWindowVisibilityChanged(bool visible)
     {
+        _windowVisible = visible;
+        UpdateAppAnalysis();
         // While hidden, scan only as often as notifications need.
         _monitor.Interval = TimeSpan.FromSeconds(visible
             ? _settings.RefreshIntervalSeconds
@@ -686,6 +814,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         UpdateCounts();
+        if (e.Snapshot.Apps is { } apps)
+        {
+            Overview.Update(apps, _ui.Post);
+        }
+
         Inspector.Refresh(Rows, DateTimeOffset.Now);
         NotifyAboutNewDevPorts(newlyOpened);
         CommandRequery.Invalidate();
@@ -813,7 +946,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             }
         }
 
-        OnPropertyChanged(nameof(HasProjects));
+        OnPropertiesChanged(nameof(HasProjects), nameof(ShowProjectsBar));
     }
 
     private string? ActiveProject => _filter.Query.Trim() is var q && q.StartsWith("project:", StringComparison.OrdinalIgnoreCase) ? q[8..].Trim() : null;

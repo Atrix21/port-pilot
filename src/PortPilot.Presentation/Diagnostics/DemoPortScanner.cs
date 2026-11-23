@@ -89,6 +89,15 @@ public sealed class DemoPortScanner : IPortScanner
         ? new(4, "System", null, null, TimeSpan.FromDays(3.2), ProcessAccessLevel.System)
         : new(812, "systemd-resolved", null, null, TimeSpan.FromDays(3.2), ProcessAccessLevel.Restricted);
 
+    public bool IncludeApps { get; set; }
+
+    // Believable footprints for the demo processes: (MB, CPU %).
+    private static readonly Dictionary<int, (int Mb, double Cpu)> Footprint = new()
+    {
+        [18244] = (412, 3.1), [20112] = (686, 1.4), [9032] = (96, 0.2), [4120] = (148, 0.4), [6688] = (12, 0.1), [15520] = (231, 0.8),
+        [7744] = (305, 0.6), [11876] = (520, 2.2), [5236] = (88, 0.3), [22408] = (174, 4.6), [13340] = (380, 1.1),
+    };
+
     /// <summary>When true the dataset is frozen with one "new" and one "closed" endpoint – used for screenshots.</summary>
     public bool Staged { get; init; }
 
@@ -142,8 +151,31 @@ public sealed class DemoPortScanner : IPortScanner
             entries.Add(Connection(Spotify, 51877, IPAddress.Parse("35.186.224.24"), 443));
         }
 
-        return new PortSnapshot(entries, DateTimeOffset.Now, TimeSpan.FromMilliseconds(3.4));
+        return new PortSnapshot(entries, DateTimeOffset.Now, TimeSpan.FromMilliseconds(3.4)) { Apps = IncludeApps ? Apps(entries) : null };
     }
+
+    private static List<Core.Apps.AppInfo> Apps(List<PortEntry> entries) =>
+        entries.Where(e => e.Binding.IsListening).GroupBy(e => e.ProcessId).Select(g =>
+        {
+            var primary = g.OrderBy(e => e.Port).First();
+            var (name, kind) = Core.Apps.AppNamer.Name(primary.Process, null, primary.Known);
+            var (mb, cpu) = Footprint.GetValueOrDefault(g.Key, (0, 0));
+            var restricted = primary.Process.Access != ProcessAccessLevel.Full;
+            return new Core.Apps.AppInfo
+            {
+                Key = $"demo:{g.Key}",
+                Name = name,
+                Kind = kind,
+                RootProcessId = g.Key,
+                ProcessIds = [g.Key],
+                Endpoints = g.OrderBy(e => e.Port).ToList(),
+                IsTooling = primary.Process.ImageName.StartsWith("code", StringComparison.OrdinalIgnoreCase) || primary.Process.ImageName.StartsWith("Code", StringComparison.Ordinal),
+                Started = primary.Process.StartTime,
+                Usage = new Core.Processes.ResourceUsage(restricted ? 0 : cpu, restricted ? 0 : mb * 1024L * 1024),
+                CommandLine = primary.Process.CommandLine,
+                WorkingDirectory = primary.Process.WorkingDirectory,
+            };
+        }).ToList();
 
     internal void MarkTerminated(int pid)
     {

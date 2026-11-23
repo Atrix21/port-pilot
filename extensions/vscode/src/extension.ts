@@ -4,6 +4,30 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { ago, RecentServer, runAgain, ServerWatch } from "./history";
 import { runtimeIcon, runtimeOf, uptime } from "./runtime";
+import { ScanStream } from "./stream";
+
+/** One app (a dev server with its workers, a database, …), as printed by `portpilot stream --apps`. */
+interface AppEntry {
+  key: string;
+  name: string;
+  kind?: string | null;
+  pid: number;
+  pids: number[];
+  processes: number;
+  cpu: number;
+  memory: number;
+  ports: number[];
+  started?: string;
+  commandLine?: string | null;
+  workingDirectory?: string | null;
+  project?: string;
+  branch?: string | null;
+  agent?: string;
+  agentRunning?: boolean;
+  leftBehind: boolean;
+  tooling: boolean;
+  system: boolean;
+}
 
 /** One endpoint, as printed by `portpilot list --json`. */
 interface PortEntry {
@@ -30,6 +54,7 @@ const NO_PROJECT = "\u0000other";
 
 let cli: string | undefined;
 let entries: PortEntry[] = [];
+let apps: AppEntry[] = [];
 let output: vscode.OutputChannel;
 let watch: ServerWatch;
 
@@ -135,7 +160,50 @@ function agentShort(name: string): string {
 
 // ═════════════ Tree ═════════════
 
-type Node = { kind: "project"; key: string; label: string; items: PortEntry[] } | { kind: "port"; entry: PortEntry };
+type Node =
+  | { kind: "project"; key: string; label: string; items: PortEntry[] }
+  | { kind: "port"; entry: PortEntry }
+  | { kind: "attention"; items: { text: string; app: AppEntry }[] }
+  | { kind: "notice"; text: string; app: AppEntry }
+  | { kind: "group"; label: string; apps: AppEntry[] }
+  | { kind: "app"; app: AppEntry };
+
+function isOverview(): boolean {
+  return vscode.workspace.getConfiguration("portpilot").get<string>("view") !== "ports";
+}
+
+function memory(bytes: number): string {
+  return bytes <= 0 ? "—" : bytes < 1024 ** 3 ? `${Math.round(bytes / 1024 ** 2)} MB` : `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+function appBelongsToWorkspace(app: AppEntry): boolean {
+  return entries.some((e) => app.pids.includes(e.pid) && belongsToWorkspace(e)) || (!!app.workingDirectory && belongsToWorkspace({ workingDirectory: app.workingDirectory } as PortEntry));
+}
+
+/** Apps to show: no tooling, the workspace's unless the scope is everything. */
+function visibleApps(): AppEntry[] {
+  const config = vscode.workspace.getConfiguration("portpilot");
+  const scope = config.get<string>("scope");
+  return apps.filter((a) => (config.get<boolean>("showTooling") || !a.tooling) && (scope === "all" || appBelongsToWorkspace(a)));
+}
+
+/** Plain-language things to look at: left behind, or unusually heavy. */
+function attention(list: AppEntry[]): { text: string; app: AppEntry }[] {
+  const items: { text: string; app: AppEntry }[] = [];
+  for (const a of list) {
+    const where = a.project ? `${a.project}: ` : "";
+    const port = a.ports.length ? ` on :${a.ports[0]}` : "";
+    if (a.leftBehind) {
+      items.push({ text: `${where}${a.name}${port} was left running by a ${a.agent ?? "coding agent"} session that has ended`, app: a });
+    }
+    if (a.cpu >= 150) {
+      items.push({ text: `${where}${a.name} is using ${(a.cpu / 100).toFixed(1)} CPU cores`, app: a });
+    } else if (a.memory > 2 * 1024 ** 3) {
+      items.push({ text: `${where}${a.name} is using ${memory(a.memory)} of memory`, app: a });
+    }
+  }
+  return items;
+}
 
 class PortsProvider implements vscode.TreeDataProvider<Node> {
   private readonly changed = new vscode.EventEmitter<void>();
@@ -149,9 +217,36 @@ class PortsProvider implements vscode.TreeDataProvider<Node> {
     if (node?.kind === "project") {
       return node.items.map((entry) => ({ kind: "port", entry }));
     }
+    if (node?.kind === "attention") {
+      return node.items.map((i) => ({ kind: "notice", text: i.text, app: i.app }));
+    }
+    if (node?.kind === "group") {
+      return node.apps.map((app) => ({ kind: "app", app }));
+    }
+    if (node?.kind === "app") {
+      return entries.filter((e) => node.app.pids.includes(e.pid) && node.app.ports.includes(e.port)).map((entry) => ({ kind: "port", entry }));
+    }
 
     if (node) {
       return [];
+    }
+
+    if (isOverview() && apps.length) {
+      const list = visibleApps();
+      const nodes: Node[] = [];
+      const notes = attention(list);
+      if (notes.length) {
+        nodes.push({ kind: "attention", items: notes });
+      }
+      const groups = new Map<string, AppEntry[]>();
+      for (const a of list) {
+        groups.set(a.project ?? NO_PROJECT, [...(groups.get(a.project ?? NO_PROJECT) ?? []), a]);
+      }
+      for (const [key, members] of [...groups.entries()].sort(([a], [b]) => (a === NO_PROJECT ? 1 : b === NO_PROJECT ? -1 : a.localeCompare(b)))) {
+        members.sort((x, y) => Number(y.leftBehind) - Number(x.leftBehind) || Number(x.system) - Number(y.system) || y.memory - x.memory);
+        nodes.push({ kind: "group", label: key === NO_PROJECT ? "Other" : key, apps: members });
+      }
+      return nodes;
     }
 
     const scope = vscode.workspace.getConfiguration("portpilot").get<string>("scope");
@@ -173,6 +268,55 @@ class PortsProvider implements vscode.TreeDataProvider<Node> {
   }
 
   getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === "attention") {
+      const item = new vscode.TreeItem(`Needs attention (${node.items.length})`, vscode.TreeItemCollapsibleState.Expanded);
+      item.iconPath = new vscode.ThemeIcon("warning", new vscode.ThemeColor("list.warningForeground"));
+      return item;
+    }
+    if (node.kind === "notice") {
+      const item = new vscode.TreeItem(node.text, vscode.TreeItemCollapsibleState.None);
+      item.tooltip = node.text;
+      item.contextValue = node.app.leftBehind ? "app leftover" : "app";
+      item.iconPath = new vscode.ThemeIcon("circle-small-filled", new vscode.ThemeColor("list.warningForeground"));
+      return item;
+    }
+    if (node.kind === "group") {
+      const total = node.apps.reduce((sum, a) => ({ cpu: sum.cpu + a.cpu, memory: sum.memory + a.memory }), { cpu: 0, memory: 0 });
+      const branches = [...new Set(node.apps.map((a) => a.branch).filter(Boolean))].join(", ");
+      const count = node.apps.filter((a) => !a.system).length;
+      const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded);
+      item.description = [branches, `${count} ${count === 1 ? "app" : "apps"}`, total.memory ? memory(total.memory) : "", total.memory ? `${total.cpu.toFixed(1)}% CPU` : ""].filter(Boolean).join(" · ");
+      item.iconPath = new vscode.ThemeIcon(node.label === "Other" ? "server" : "repo");
+      return item;
+    }
+    if (node.kind === "app") {
+      const a = node.app;
+      const item = new vscode.TreeItem(a.name, vscode.TreeItemCollapsibleState.Collapsed);
+      const ports = a.ports.length ? `:${a.ports[0]}${a.ports.length > 1 ? ` +${a.ports.length - 1}` : ""}` : "";
+      item.description = [
+        ports,
+        a.leftBehind ? `left behind by ${agentShort(a.agent ?? "an agent")}` : a.agent ? agentShort(a.agent) : undefined,
+        a.memory ? memory(a.memory) : undefined,
+        a.memory ? `${a.cpu.toFixed(1)}%` : undefined,
+        uptime(a.started),
+      ].filter(Boolean).join(" · ");
+      const runtime = runtimeOf(a.name, a.kind, a.commandLine);
+      item.iconPath = a.system ? new vscode.ThemeIcon("lock", new vscode.ThemeColor("disabledForeground")) : runtimeIcon(runtime, a.leftBehind, true);
+      const md = new vscode.MarkdownString(undefined, true);
+      md.appendMarkdown(`**${a.name}**${a.kind && !a.name.includes(a.kind) ? ` (${a.kind})` : ""}${a.project ? ` · $(repo) ${a.project}${a.branch ? ` · $(git-branch) ${a.branch}` : ""}` : ""}\n\n`);
+      md.appendMarkdown(`${memory(a.memory)} memory · ${a.cpu.toFixed(1)}% CPU · ${a.processes} ${a.processes === 1 ? "process" : "processes"}${a.started ? ` · up ${uptime(a.started)}` : ""}\n\n`);
+      md.appendMarkdown(`Ports: ${a.ports.map((p) => ":" + p).join(" ")}\n\n`);
+      if (a.commandLine) {
+        md.appendCodeblock(a.commandLine.length > 300 ? a.commandLine.slice(0, 300) + "…" : a.commandLine, "sh");
+      }
+      if (a.agent) {
+        md.appendMarkdown(a.agentRunning === false ? `$(warning) Left behind by a ${a.agent} session that has ended` : `$(hubot) Started by ${a.agent}`);
+      }
+      item.tooltip = md;
+      const primary = entries.find((e) => a.pids.includes(e.pid) && e.port === a.ports[0]);
+      item.contextValue = `app${primary && isHttp(primary) ? " http" : ""}${a.system ? " system" : ""}`;
+      return item;
+    }
     if (node.kind === "project") {
       const branches = [...new Set(node.items.map((e) => e.project?.branch).filter(Boolean))].join(", ");
       const leftovers = node.items.filter((e) => e.orphaned).length;
@@ -255,7 +399,30 @@ function entryOf(arg: unknown): PortEntry | undefined {
   if (arg && typeof arg === "object" && "entry" in arg) {
     return (arg as { entry: PortEntry }).entry;
   }
+  if (arg && typeof arg === "object" && "app" in arg) {
+    const app = (arg as { app: AppEntry }).app;
+    return entries.find((e) => app.pids.includes(e.pid) && e.port === app.ports[0]);
+  }
   return arg as PortEntry | undefined;
+}
+
+/** Stops a whole app: its workers first, then the process that started them. */
+async function stopApp(app: AppEntry, refresh: () => Promise<void>): Promise<void> {
+  const answer = await vscode.window.showWarningMessage(
+    `Stop ${app.name}?`,
+    { modal: true, detail: `${app.processes} ${app.processes === 1 ? "process" : "processes"} on ${app.ports.map((p) => ":" + p).join(" ")}.${app.commandLine ? `\n\n${app.commandLine}` : ""}` },
+    "Stop",
+  );
+  if (answer !== "Stop") {
+    return;
+  }
+
+  for (const pid of [...app.pids].reverse()) {
+    watch.expectStop(pid);
+    await run(["kill", `pid:${pid}`, "-y"]).catch(() => undefined);
+  }
+  vscode.window.showInformationMessage(`Stopped ${app.name}.`);
+  await refresh();
 }
 
 async function stop(entry: PortEntry, refresh: () => Promise<void>): Promise<void> {
@@ -393,6 +560,7 @@ export interface PortPilotApi {
   entries(): readonly PortEntry[];
   workspaceEntries(): readonly PortEntry[];
   recent(): readonly RecentServer[];
+  apps(): readonly AppEntry[];
   refresh(): Promise<void>;
 }
 
@@ -410,8 +578,7 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = "portpilot.ports.focus";
 
-  const refresh = async () => {
-    await scan();
+  const render = async () => {
     provider.refresh();
     const mine = entries.filter(belongsToWorkspace);
     const leftovers = entries.filter((e) => e.orphaned);
@@ -425,20 +592,34 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
     }
     const ports = [...new Set(mine.map((e) => e.port))].sort((a, b) => a - b);
     status.text = `$(radio-tower) ${ports.length ? ports.slice(0, 3).map((p) => ":" + p).join(" ") + (ports.length > 3 ? " …" : "") : "no ports"}${leftovers.length ? `  $(warning) ${leftovers.length}` : ""}`;
-    status.tooltip = `PortPilot: ${mine.length} ${mine.length === 1 ? "endpoint" : "endpoints"} in this workspace${leftovers.length ? `, ${leftovers.length} left behind by ended agent sessions` : ""}`;
+    const memoryTotal = visibleApps().reduce((sum, a) => sum + a.memory, 0);
+    status.tooltip = `PortPilot: ${mine.length} ${mine.length === 1 ? "endpoint" : "endpoints"} in this workspace${memoryTotal ? `, ${memory(memoryTotal)}` : ""}${leftovers.length ? `, ${leftovers.length} left behind by ended agent sessions` : ""}`;
     status.show();
   };
 
-  // Scan only while someone can see the result.
-  let timer: NodeJS.Timeout | undefined;
+  /** A one-off scan (manual refresh, tests); the stream does the regular ones. */
+  const refresh = async () => {
+    await scan();
+    await render();
+  };
+
+  // One long-lived stream while the window is focused; nothing at all while it isn't.
+  const stream = new ScanStream(
+    (data) => {
+      const scanData = data as { entries: PortEntry[]; apps?: AppEntry[] };
+      entries = scanData.entries;
+      apps = scanData.apps ?? [];
+      void render();
+    },
+    (message) => output.appendLine(message),
+  );
   const schedule = () => {
-    clearInterval(timer);
     const seconds = Math.max(1, vscode.workspace.getConfiguration("portpilot").get<number>("refreshSeconds") ?? 3);
-    timer = setInterval(() => {
-      if (vscode.window.state.focused && (view.visible || status.text)) {
-        void refresh();
-      }
-    }, seconds * 1000);
+    if (cli && vscode.window.state.focused) {
+      stream.start(cli, seconds, isOverview());
+    } else {
+      stream.stop();
+    }
   };
   schedule();
   void refresh();
@@ -451,7 +632,7 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
     vscode.commands.registerCommand("portpilot.forgetRecent", (r: RecentServer) => r && watch.forget(r.key)),
     vscode.commands.registerCommand("portpilot.clearRecent", () => watch.clear()),
     status,
-    { dispose: () => clearInterval(timer) },
+    { dispose: () => stream.stop() },
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("portpilot")) {
         cli = resolveCli(context);
@@ -460,7 +641,13 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
         void refresh();
       }
     }),
-    vscode.window.onDidChangeWindowState((s) => s.focused && void refresh()),
+    vscode.window.onDidChangeWindowState(() => schedule()),
+    vscode.commands.registerCommand("portpilot.showOverview", () => vscode.workspace.getConfiguration("portpilot").update("view", "overview", vscode.ConfigurationTarget.Global)),
+    vscode.commands.registerCommand("portpilot.showPorts", () => vscode.workspace.getConfiguration("portpilot").update("view", "ports", vscode.ConfigurationTarget.Global)),
+    vscode.commands.registerCommand("portpilot.stopApp", (node?: Node) => {
+      const app = node?.kind === "app" || node?.kind === "notice" ? node.app : undefined;
+      return app && stopApp(app, refresh);
+    }),
     vscode.window.registerTerminalLinkProvider(new PortInUseLinks()),
     vscode.commands.registerCommand("portpilot.refresh", refresh),
     vscode.commands.registerCommand("portpilot.toggleScope", async () => {
@@ -476,7 +663,12 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
     }),
     vscode.commands.registerCommand("portpilot.logs", (arg) => entryOf(arg) && showLogs(entryOf(arg)!)),
     vscode.commands.registerCommand("portpilot.health", (arg) => entryOf(arg) && health(entryOf(arg)!)),
-    vscode.commands.registerCommand("portpilot.stop", (arg) => entryOf(arg) && stop(entryOf(arg)!, refresh)),
+    vscode.commands.registerCommand("portpilot.stop", (arg) => {
+      if (arg && typeof arg === "object" && "app" in arg) {
+        return stopApp((arg as { app: AppEntry }).app, refresh);
+      }
+      return entryOf(arg) && stop(entryOf(arg)!, refresh);
+    }),
     vscode.commands.registerCommand("portpilot.copyUrl", (arg) => entryOf(arg) && vscode.env.clipboard.writeText(url(entryOf(arg)!))),
     vscode.commands.registerCommand("portpilot.copyPid", (arg) => entryOf(arg) && vscode.env.clipboard.writeText(String(entryOf(arg)!.pid))),
     vscode.commands.registerCommand("portpilot.setupClaude", async () => {
@@ -499,6 +691,7 @@ export function activate(context: vscode.ExtensionContext): PortPilotApi {
     entries: () => entries,
     workspaceEntries: () => entries.filter(belongsToWorkspace),
     recent: () => watch.recent,
+    apps: () => apps,
     refresh,
   };
 }

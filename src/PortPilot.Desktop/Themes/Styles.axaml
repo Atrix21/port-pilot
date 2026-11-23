@@ -666,6 +666,53 @@
         <Setter Property="Opacity" Value="0" />
     </Style>
 
+    <!-- Overview -->
+    <Style Selector="Border.attention">
+        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Background" Value="{DynamicResource Caution.Soft}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Caution}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.app-card">
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Background" Value="{DynamicResource Bg.Panel}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Hairline}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Grid.app-row">
+        <Setter Property="MinHeight" Value="56" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Grid.app-row > :is(Control)">
+        <Setter Property="Margin" Value="0,10" />
+    </Style>
+    <Style Selector="Grid.app-row > Ellipse">
+        <Setter Property="Margin" Value="18,0,14,0" />
+    </Style>
+    <Style Selector="Grid.app-row > StackPanel.app-actions">
+        <Setter Property="Margin" Value="12,0,12,0" />
+        <Setter Property="Opacity" Value="0.35" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Grid.app-row:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Row.Hover}" />
+    </Style>
+    <Style Selector="Grid.app-row:pointerover > StackPanel.app-actions">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+
     <!-- Skeleton bars while the first scan runs -->
     <Style Selector="Border.skeleton">
         <Setter Property="Height" Value="9" />

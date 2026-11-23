@@ -272,6 +272,40 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnAppPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(null).Properties.IsLeftButtonPressed && (sender as StyledElement)?.DataContext is AppViewModel app)
+        {
+            _vm.InspectAppCommand.Execute(app);
+        }
+    }
+
+    private void OnAppOpen(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as StyledElement)?.DataContext is AppViewModel app && _vm.OpenAppCommand.CanExecute(app))
+        {
+            _vm.OpenAppCommand.Execute(app);
+        }
+    }
+
+    private void OnAppStop(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as StyledElement)?.DataContext is AppViewModel app && _vm.StopAppCommand.CanExecute(app))
+        {
+            _vm.StopAppCommand.Execute(app);
+        }
+    }
+
+    private void OnAttentionAction(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as StyledElement)?.DataContext is AttentionViewModel item)
+        {
+            _vm.AttentionActionCommand.Execute(item);
+        }
+    }
+
     private void OnProjectClick(object? sender, RoutedEventArgs e)
     {
         if ((sender as StyledElement)?.DataContext is ProjectGroupViewModel project)

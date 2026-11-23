@@ -12,7 +12,7 @@ import javax.swing.JComponent
 
 @State(name = "PortPilotSettings", storages = [Storage("portpilot.xml")])
 class PortPilotSettings : PersistentStateComponent<PortPilotSettings.Data> {
-    data class Data(var cliPath: String = "", var showAllPorts: Boolean = false, var refreshSeconds: Int = 3)
+    data class Data(var cliPath: String = "", var showAllPorts: Boolean = false, var refreshSeconds: Int = 3, var overview: Boolean = true)
 
     private var data = Data()
 

@@ -68,8 +68,42 @@ private class PortsModel : AbstractTableModel() {
     }
 }
 
+/** Apps, not ports: what each project runs, with CPU and memory. */
+private class AppsModel : AbstractTableModel() {
+    var rows: List<AppEntry> = emptyList()
+        set(value) {
+            field = value
+            fireTableDataChanged()
+        }
+
+    private val columns = arrayOf("App", "Ports", "Project", "Memory", "CPU", "Agent", "Status")
+
+    override fun getRowCount() = rows.size
+    override fun getColumnCount() = columns.size
+    override fun getColumnName(column: Int) = columns[column]
+
+    override fun getValueAt(row: Int, column: Int): Any? {
+        val a = rows[row]
+        return when (column) {
+            0 -> a.name + (a.kind?.takeIf { !a.name.contains(it) }?.let { " ($it)" } ?: "")
+            1 -> a.portsText
+            2 -> listOfNotNull(a.project, a.branch).joinToString(" · ")
+            3 -> a.memoryText
+            4 -> a.cpuText
+            5 -> a.agentText
+            else -> a.status
+        }
+    }
+}
+
 private class PortsPanel(private val project: Project, private val toolWindow: ToolWindow) : SimpleToolWindowPanel(true, true), com.intellij.openapi.Disposable {
     private val model = PortsModel()
+    private val appsModel = AppsModel()
+    private val appsTable = JBTable(appsModel).apply {
+        autoCreateRowSorter = true
+        setShowGrid(false)
+        emptyText.text = "Scanning…"
+    }
     private val table = JBTable(model).apply {
         autoCreateRowSorter = true
         setShowGrid(false)
@@ -78,9 +112,10 @@ private class PortsPanel(private val project: Project, private val toolWindow: T
     private var timer: ScheduledFuture<*>? = null
 
     init {
-        setContent(ScrollPaneFactory.createScrollPane(table))
+        setContent(ScrollPaneFactory.createScrollPane(if (PortPilotSettings.instance.state.overview) appsTable else table))
         toolbar = ActionManager.getInstance().createActionToolbar("PortPilot", toolbarActions(), true).also { it.targetComponent = this }.component
         PopupHandler.installPopupMenu(table, rowActions(), "PortPilotRow")
+        PopupHandler.installPopupMenu(appsTable, rowActions(), "PortPilotApp")
         table.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if (e.clickCount == 2) selected()?.takeIf { it.isHttp }?.let { BrowserUtil.browse(it.url) }
@@ -106,6 +141,17 @@ private class PortsPanel(private val project: Project, private val toolWindow: T
             return
         }
 
+        if (PortPilotSettings.instance.state.overview) {
+            val apps = PortPilotCli.apps().filter { !it.tooling && (PortPilotSettings.instance.state.showAllPorts || it.belongsTo(project)) }
+            ApplicationManager.getApplication().invokeLater {
+                appsTable.emptyText.text = if (PortPilotSettings.instance.state.showAllPorts) "Nothing is running." else "Nothing in this project is running. Toggle the filter to see everything."
+                appsModel.rows = apps.sortedWith(compareByDescending<AppEntry> { it.leftBehind }.thenBy { it.project ?: "\uffff" }.thenByDescending { it.memory })
+                val left = apps.count { it.leftBehind }
+                toolWindow.setTitle(if (left > 0) "$left left behind" else "")
+            }
+            return
+        }
+
         val all = PortPilotCli.list()
         val visible = if (PortPilotSettings.instance.state.showAllPorts) all else all.filter { it.belongsTo(project) }
         ApplicationManager.getApplication().invokeLater {
@@ -118,6 +164,9 @@ private class PortsPanel(private val project: Project, private val toolWindow: T
     }
 
     private fun selected(): PortEntry? = table.selectedRow.takeIf { it >= 0 }?.let { model.rows.getOrNull(table.convertRowIndexToModel(it)) }
+        ?: selectedApp()?.let { app -> PortEntry(port = app.ports.firstOrNull() ?: 0, pid = app.pid, process = app.name, protocol = "tcp", state = "Listening", commandLine = app.commandLine) }
+
+    private fun selectedApp(): AppEntry? = appsTable.selectedRow.takeIf { it >= 0 }?.let { appsModel.rows.getOrNull(appsTable.convertRowIndexToModel(it)) }
 
     private fun background(task: () -> Unit) = ApplicationManager.getApplication().executeOnPooledThread(task)
 
@@ -126,6 +175,15 @@ private class PortsPanel(private val project: Project, private val toolWindow: T
 
     private fun toolbarActions() = DefaultActionGroup().apply {
         add(action("Refresh", AllIcons.Actions.Refresh) { background(::refreshNow) })
+        add(object : ToggleAction("Overview: Apps, Not Ports", "Group into apps with CPU and memory, instead of one row per port", AllIcons.Actions.ListFiles), DumbAware {
+            override fun isSelected(e: AnActionEvent) = PortPilotSettings.instance.state.overview
+            override fun setSelected(e: AnActionEvent, state: Boolean) {
+                PortPilotSettings.instance.state.overview = state
+                setContent(ScrollPaneFactory.createScrollPane(if (state) appsTable else table))
+                background(::refreshNow)
+            }
+            override fun getActionUpdateThread() = ActionUpdateThread.BGT
+        })
         add(object : ToggleAction("Show Every Port", "Every listening port on the machine, not just this project's", AllIcons.General.Filter), DumbAware {
             override fun isSelected(e: AnActionEvent) = PortPilotSettings.instance.state.showAllPorts
             override fun setSelected(e: AnActionEvent, state: Boolean) {
@@ -158,6 +216,16 @@ private class PortsPanel(private val project: Project, private val toolWindow: T
         add(action("Copy PID", null) { selected()?.let { CopyPasteManager.getInstance().setContents(StringSelection(it.pid.toString())) } })
         addSeparator()
         add(action("Stop Process…", AllIcons.Actions.Suspend) {
+            selectedApp()?.takeIf { PortPilotSettings.instance.state.overview }?.let { app ->
+                if (Messages.showYesNoDialog(project, "Stop ${app.name}?\n\n${app.processes} process(es) on ${app.ports.joinToString(" ") { ":$it" }}.${app.commandLine?.let { "\n\n$it" } ?: ""}", "Stop App", "Stop", "Cancel", Messages.getWarningIcon()) == Messages.YES) {
+                    background {
+                        app.pids.reversed().forEach { PortPilotCli.stop(it) }
+                        notify("Stopped ${app.name}.")
+                        refreshNow()
+                    }
+                }
+                return@action
+            }
             val e = selected() ?: return@action
             val detail = listOfNotNull(e.commandLine, e.agent?.let { if (it.running) "Started by ${it.name}" else "Left behind by an ended ${it.name} session" }).joinToString("\n\n")
             if (Messages.showYesNoDialog(project, "Stop ${e.process} (PID ${e.pid}) on :${e.port}?\n\n$detail", "Stop Process", "Stop", "Cancel", Messages.getWarningIcon()) == Messages.YES) {

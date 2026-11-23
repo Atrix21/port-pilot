@@ -13,6 +13,23 @@ internal static unsafe partial class LibProc
     public const int PROC_ALL_PIDS = 1;
     public const int PROC_PIDLISTFDS = 1;
     public const int PROC_PIDTBSDINFO = 3;
+    public const int PROC_PIDTASKINFO = 4;
+
+    // struct proc_taskinfo: virtual u64 @0, resident u64 @8, total_user u64 @16, total_system u64 @24 (mach time units).
+    public const int TaskInfoSize = 96;
+    public const int TaskResident = 8;
+    public const int TaskUser = 16;
+    public const int TaskSystem = 24;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct mach_timebase_info_data_t
+    {
+        public uint numer;
+        public uint denom;
+    }
+
+    [LibraryImport(LibSystem)]
+    public static partial int mach_timebase_info(mach_timebase_info_data_t* info);
     public const int PROC_PIDVNODEPATHINFO = 9;
     public const int PROC_PIDFDVNODEPATHINFO = 2;
     public const int PROC_PIDFDSOCKETINFO = 3;

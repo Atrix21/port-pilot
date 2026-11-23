@@ -139,7 +139,7 @@ The same app, built for Linux: the same design, the same view models, and a Linu
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/linux-inspector-dark.png" alt="PortPilot on Linux, dark theme, with the inspector open" /></td>
+    <td width="50%"><img src="docs/screenshots/linux-overview-dark.png" alt="PortPilot's overview: apps grouped by project, with memory, CPU and what needs attention" /></td>
     <td width="50%"><img src="docs/screenshots/linux-inspector-light.png" alt="PortPilot on Linux, light theme" /></td>
   </tr>
   <tr>
@@ -165,12 +165,31 @@ portpilot 3000            who is on port 3000, with path, command line and start
 portpilot kill 3000       stop it (asks first; -y to skip)
 portpilot projects        what each git project is running, and which agent session started it
 portpilot cleanup         stop what ended agent sessions left running (asks first; -y to skip)
+portpilot apps            apps, not ports: what each project runs, with CPU and memory
 portpilot health          is each dev server actually answering?
 portpilot logs 3000       the last lines it wrote
 portpilot setup claude    hook + background watcher + MCP server, in one go
 ```
 
 Stopping a process sends `SIGTERM`, waits three seconds, then sends `SIGKILL`. It refuses if the PID has been reused since you looked, and it won't stop init, kernel threads or itself. Linux only tells you who owns another user's socket if you are root, so those rows say *Owned by another user*. The desktop app offers *Restart as root* (through polkit); in the terminal, use `sudo`.
+
+### Apps, not ports
+
+A project with a dev server, a database and a few workers can easily hold a dozen ports, and a Java service can hold fifty. Listed one per row, that's a task manager. The **Overview**, which is the default view, shows what a person would say is running instead:
+
+- **One line per app.** A dev server together with its watcher and workers (`npm run dev` → node → esbuild) is a single row, named the way you'd say it: *Vite dev server*, *Django dev server*, *order-service (Spring Boot)*, *PostgreSQL*, *npm run dev*. Its ports are folded into it (`:5173 +2`).
+- **What it costs.** Memory and CPU for the whole process family, totalled per project (*atlas-web · 2 apps · 586 MB · 7.7% CPU*).
+- **Needs attention, in sentences.** *"ledger: Django dev server on :8000 was left running by a Claude Code session that has ended."*, *"… is running but not answering on :5173."*, *"… is using 2 CPU cores."*, each with a button.
+- **Out of the way.** Editors, language servers and build daemons are hidden, and every service whose owner you can't see folds into one *System services* line.
+
+*All ports* is one click away for the full table. The same view is `portpilot apps` in a terminal, the *Overview* in the VS Code and JetBrains extensions, and `list_apps` for agents over MCP.
+
+**What it costs to run:** Grouping is worked out only while the overview is on screen. CPU % is the difference between two scans, so measuring it adds no extra sampling. Memory is one small read per process. Measured on Linux while streaming every second:
+
+| | CPU | Memory | Scan time |
+| --- | --- | --- | --- |
+| Ports only | 0.25% of one core | 11 MB | 1.1 ms median |
+| With apps, CPU and memory | 0.35% of one core | 12 MB | 1.4 ms median |
 
 ### Projects and agents
 

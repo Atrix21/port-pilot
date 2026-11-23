@@ -5,6 +5,8 @@ const vscode = require("vscode");
 
 exports.run = async function run() {
   await vscode.workspace.getConfiguration("portpilot").update("cliPath", process.env.PORTPILOT_TEST_CLI, vscode.ConfigurationTarget.Global);
+  await vscode.workspace.getConfiguration("portpilot").update("view", "overview", vscode.ConfigurationTarget.Global);
+  await vscode.workspace.getConfiguration("portpilot").update("scope", "workspace", vscode.ConfigurationTarget.Global);
   const folder = vscode.workspace.workspaceFolders[0].uri.fsPath;
   const server = spawn("python3", ["-m", "http.server", "5179", "--bind", "127.0.0.1"], { cwd: folder, stdio: "ignore" });
   try {
@@ -23,6 +25,17 @@ exports.run = async function run() {
     assert.ok(entry, "the workspace's server is listed");
     assert.strictEqual(entry.process.startsWith("python"), true);
     assert.ok(entry.project, "it is attributed to the workspace's git project");
+
+    // The stream groups it into an app and measures it.
+    let app;
+    for (let i = 0; i < 40 && !app; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      app = api.apps().find((a) => a.ports.includes(5179));
+    }
+    assert.ok(app, "the stream reports the server as an app");
+    assert.strictEqual(app.name, "Static file server");
+    assert.ok(app.memory > 1024 * 1024, `memory measured (${app.memory})`);
+    console.log(`App OK: ${app.name}, ${Math.round(app.memory / 1048576)} MB, ${app.cpu}% CPU, project ${app.project}`);
 
     const commands = await vscode.commands.getCommands(true);
     for (const id of ["portpilot.refresh", "portpilot.whoIsOn", "portpilot.freePort", "portpilot.cleanup", "portpilot.stop", "portpilot.logs"]) {

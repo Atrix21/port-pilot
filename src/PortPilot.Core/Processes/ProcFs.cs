@@ -11,7 +11,9 @@ namespace PortPilot.Core.Processes;
 internal static unsafe class ProcFs
 {
     /// <summary>The fields of <c>/proc/[pid]/stat</c> PortPilot cares about.</summary>
-    public readonly record struct Stat(char State, int ParentId, long StartTicks)
+    /// <param name="CpuTicks">utime + stime, in clock ticks.</param>
+    /// <param name="RssPages">Resident set size, in pages.</param>
+    public readonly record struct Stat(char State, int ParentId, long StartTicks, long CpuTicks = 0, long RssPages = 0)
     {
         public bool IsGone => State is 'Z' or 'X' or 'x';
     }
@@ -97,10 +99,11 @@ internal static unsafe class ProcFs
         var rest = data[(close + 2)..];
         var state = (char)rest[0];
         int ppid = 0;
-        long start = 0;
+        long start = 0, utime = 0, stime = 0, rss = 0;
 
         // Fields after the comm: 0 = state (field 3), 1 = ppid (field 4), 19 = starttime (field 22).
-        for (var field = 0; field <= 19 && !rest.IsEmpty; field++)
+        // 11 = utime (field 14), 12 = stime (15), 21 = rss (24): CPU and memory come with the same read.
+        for (var field = 0; field <= 21 && !rest.IsEmpty; field++)
         {
             var end = rest.IndexOf((byte)' ');
             var token = end < 0 ? rest : rest[..end];
@@ -112,11 +115,23 @@ internal static unsafe class ProcFs
             {
                 _ = Utf8Parser.TryParse(token, out start, out _);
             }
+            else if (field == 11)
+            {
+                _ = Utf8Parser.TryParse(token, out utime, out _);
+            }
+            else if (field == 12)
+            {
+                _ = Utf8Parser.TryParse(token, out stime, out _);
+            }
+            else if (field == 21)
+            {
+                _ = Utf8Parser.TryParse(token, out rss, out _);
+            }
 
             rest = end < 0 ? default : rest[(end + 1)..];
         }
 
-        stat = new Stat(state, ppid, start);
+        stat = new Stat(state, ppid, start, utime + stime, rss);
         return true;
     }
 
@@ -172,6 +187,10 @@ internal static unsafe class ProcFs
 
         return value;
     }
+
+    public static long TicksPerSecond => ClockTicks;
+
+    public static long PageSize { get; } = OperatingSystem.IsLinux() && Libc.sysconf(Libc._SC_PAGESIZE) is > 0 and var size ? size : 4096;
 
     private static long ReadClockTicks()
     {

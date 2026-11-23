@@ -9,6 +9,12 @@ namespace PortPilot.Core.Discovery;
 public interface IPortScanner
 {
     PortSnapshot Scan(bool includeAllTcpStates);
+
+    /// <summary>
+    /// Also group endpoints into apps and measure their CPU and memory. Costs a process-table read every
+    /// few seconds and one small read per process in each app, so turn it on only while it is displayed.
+    /// </summary>
+    bool IncludeApps { get => false; set { } }
 }
 
 /// <summary>
@@ -22,6 +28,9 @@ public sealed class PortScanner(
 {
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly ILogger _log = logger ?? NullLogger<PortScanner>.Instance;
+    private Apps.AppAnalyzer? _apps;
+
+    public bool IncludeApps { get; set; }
 
     public PortSnapshot Scan(bool includeAllTcpStates)
     {
@@ -45,8 +54,18 @@ public sealed class PortScanner(
             entries.Add(new PortEntry(binding, process, WellKnownPorts.Lookup(binding.LocalPort)));
         }
 
+        IReadOnlyList<Apps.AppInfo>? apps = null;
+        if (IncludeApps)
+        {
+            apps = (_apps ??= new Apps.AppAnalyzer()).Analyze(entries.Where(e => e.Binding.IsListening).ToList());
+        }
+        else
+        {
+            _apps = null; // drop the samples so CPU % starts fresh next time
+        }
+
         var elapsed = Stopwatch.GetElapsedTime(started);
         _log.LogDebug("Scan found {Endpoints} endpoints across {Processes} processes in {ElapsedMs:0.0} ms", entries.Count, pids.Count, elapsed.TotalMilliseconds);
-        return new PortSnapshot(entries, _clock.GetLocalNow(), elapsed);
+        return new PortSnapshot(entries, _clock.GetLocalNow(), elapsed) { Apps = apps };
     }
 }

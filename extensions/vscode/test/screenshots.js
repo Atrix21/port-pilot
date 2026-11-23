@@ -17,6 +17,7 @@ exports.run = async function run() {
   const config = vscode.workspace.getConfiguration("portpilot");
   await config.update("cliPath", process.env.PORTPILOT_TEST_CLI, vscode.ConfigurationTarget.Global);
   await config.update("notifyOnStop", true, vscode.ConfigurationTarget.Global);
+  await config.update("view", "overview", vscode.ConfigurationTarget.Global);
   await vscode.workspace.getConfiguration("workbench").update("startupEditor", "none", vscode.ConfigurationTarget.Global);
 
   // A full-size window, the PortPilot sidebar, and a project file open beside it.
@@ -32,13 +33,20 @@ exports.run = async function run() {
   // Widen the sidebar by dragging its edge.
   await wait(800);
   try {
-    execFileSync("xdotool", ["mousemove", "219", "600", "mousedown", "1", "mousemove", "300", "600", "mousemove", "600", "600", "mouseup", "1", "mousemove", "900", "700"]);
+    execFileSync("xdotool", ["mousemove", "349", "600", "sleep", "0.3", "mousedown", "1", "sleep", "0.2",
+      "mousemove", "380", "600", "sleep", "0.1", "mousemove", "420", "600", "sleep", "0.1", "mousemove", "440", "600", "sleep", "0.1",
+      "mousemove", "560", "600", "sleep", "0.1", "mousemove", "640", "600", "sleep", "0.3", "mouseup", "1", "mousemove", "1000", "700"]);
   } catch {}
   for (let i = 0; i < 6; i++) {
     await api.refresh();
     await wait(500);
   }
   await vscode.commands.executeCommand("notifications.clearAll");
+  await wait(4000); // a few stream scans, so CPU % has something to compare
+  shot("vscode-overview");
+
+  await config.update("view", "ports", vscode.ConfigurationTarget.Global);
+  await api.refresh();
   await wait(1500);
   shot("vscode-ports");
 

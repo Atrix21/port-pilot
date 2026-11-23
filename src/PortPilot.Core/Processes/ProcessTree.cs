@@ -40,6 +40,41 @@ public static class ProcessTree
         return map;
     }
 
+    /// <summary>Every process with its parent and short name, as of now. One cheap pass over the process list.</summary>
+    public static Dictionary<int, (int Parent, string Name)> Snapshot()
+    {
+        var map = new Dictionary<int, (int, string)>(512);
+        if (OperatingSystem.IsLinux())
+        {
+            foreach (var pid in ProcFs.EnumerateNumeric("/proc"))
+            {
+                if (ProcFs.TryReadStat(pid, out var stat, out var comm) && !stat.IsGone)
+                {
+                    map[pid] = (stat.ParentId, comm ?? "");
+                }
+            }
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            foreach (var pid in MacProc.ListPids())
+            {
+                if (MacProc.TryGetBsdInfo(pid, out var info) && !info.IsZombie)
+                {
+                    map[pid] = (info.ParentId, info.Comm);
+                }
+            }
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            foreach (var (pid, info) in NativeProcess.SnapshotProcessNames())
+            {
+                map[pid] = (info.ParentId, info.Name);
+            }
+        }
+
+        return map;
+    }
+
     /// <summary>All descendants of <paramref name="root"/>, nearest first.</summary>
     public static List<int> Descendants(int root, Dictionary<int, int>? parents = null)
     {

@@ -75,6 +75,26 @@ internal static unsafe partial class Kernel32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWow64Process(SafeProcessHandle hProcess, [MarshalAs(UnmanagedType.Bool)] out bool wow64Process);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROCESS_MEMORY_COUNTERS
+    {
+        public uint cb;
+        public uint PageFaultCount;
+        public nuint PeakWorkingSetSize;
+        public nuint WorkingSetSize;
+        public nuint QuotaPeakPagedPoolUsage;
+        public nuint QuotaPagedPoolUsage;
+        public nuint QuotaPeakNonPagedPoolUsage;
+        public nuint QuotaNonPagedPoolUsage;
+        public nuint PagefileUsage;
+        public nuint PeakPagefileUsage;
+    }
+
+    /// <summary>Works with PROCESS_QUERY_LIMITED_INFORMATION (Windows 8.1+).</summary>
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool K32GetProcessMemoryInfo(SafeProcessHandle process, PROCESS_MEMORY_COUNTERS* counters, uint size);
+
     [LibraryImport("kernel32.dll", SetLastError = true)]
     public static partial SafeFileHandle CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
 

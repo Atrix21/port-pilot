@@ -31,7 +31,10 @@ public sealed class InspectorViewModel : ObservableObject
     public ICommand RefreshLogsCommand { get; }
 
     // ── Health ──
-    public bool CanCheckHealth => _row is { IsTcp: true, IsListening: true, IsClosed: false };
+    /// <summary>Off in demo mode, where the ports aren't real.</summary>
+    public bool HealthChecksEnabled { get; set; } = true;
+
+    public bool CanCheckHealth => HealthChecksEnabled && _row is { IsTcp: true, IsListening: true, IsClosed: false };
 
     public bool IsCheckingHealth
     {

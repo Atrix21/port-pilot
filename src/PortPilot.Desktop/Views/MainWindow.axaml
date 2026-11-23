@@ -102,7 +102,7 @@
             <!-- ═════════════ Header ═════════════ -->
             <Grid Grid.Row="1" Margin="28,6,28,0" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Classes="display" Text="Listening ports" />
+                    <TextBlock Classes="display" Text="{Binding PageTitle}" />
                     <TextBlock Margin="0,3,0,0" Classes="caption" Text="{Binding HeaderSubtitle}" />
                 </StackPanel>
 
@@ -125,8 +125,16 @@
             </Grid>
 
             <!-- ═════════════ Filters ═════════════ -->
-            <Grid Grid.Row="2" Margin="28,18,28,14" ColumnDefinitions="Auto,Auto,*,Auto">
-                <Border Classes="segmented">
+            <Grid Grid.Row="2" Margin="28,18,28,14" ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                <Border Classes="segmented" Margin="0,0,12,0">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Classes="segment" Content="Overview" GroupName="Mode" ToolTip.Tip="Apps grouped by project, with CPU and memory"
+                                     IsChecked="{Binding IsOverview}" />
+                        <RadioButton Classes="segment" Content="All ports" GroupName="Mode" ToolTip.Tip="Every endpoint, with filters"
+                                     IsChecked="{Binding IsPortsView}" Command="{Binding ShowPortsCommand}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Classes="segmented" IsVisible="{Binding IsPortsView}">
                     <StackPanel Orientation="Horizontal">
                         <RadioButton Classes="segment" Content="All" GroupName="Protocol" ToolTip.Tip="All protocols  ·  Ctrl+1"
                                      IsChecked="{Binding Protocol, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=All}" />
@@ -137,7 +145,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Column="1" Margin="12,0,0,0" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Column="2" Margin="12,0,0,0" Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsPortsView}">
                     <ToggleButton Classes="chip" IsChecked="{Binding ListeningOnly}" ToolTip.Tip="Hide outgoing and closing connections  ·  Ctrl+L">
                         <StackPanel Orientation="Horizontal" Spacing="7">
                             <c:Icon Data="{StaticResource Icon.Radar}" Size="15" VerticalAlignment="Center" />
@@ -152,7 +160,8 @@
                     </ToggleButton>
                 </StackPanel>
 
-                <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal" Spacing="14">
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" Classes="caption" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding Overview.Totals}" IsVisible="{Binding IsOverview}" />
+                <StackPanel Grid.Column="4" VerticalAlignment="Center" Orientation="Horizontal" Spacing="14">
                     <TextBlock VerticalAlignment="Center" Classes="caption" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding CountText}" IsVisible="{Binding IsFiltered}" />
                     <Button Name="RefreshButton" Classes="secondary" Height="30" Padding="10,0,12,0" Command="{Binding RefreshCommand}" ToolTip.Tip="Scan now  ·  F5">
                         <StackPanel Orientation="Horizontal" Spacing="7">
@@ -170,7 +179,7 @@
             </Grid>
 
             <!-- ═════════════ Projects ═════════════ -->
-            <Grid Grid.Row="3" Margin="28,0,28,14" ColumnDefinitions="*,Auto" IsVisible="{Binding HasProjects}">
+            <Grid Grid.Row="3" Margin="28,0,28,14" ColumnDefinitions="*,Auto" IsVisible="{Binding ShowProjectsBar}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <ItemsControl ItemsSource="{Binding Projects}">
                         <ItemsControl.ItemsPanel>
@@ -228,7 +237,98 @@
 
             <!-- ═════════════ Content ═════════════ -->
             <Grid Grid.Row="4" ColumnDefinitions="*,Auto">
-                <Grid RowDefinitions="34,*">
+                <!-- Overview: apps, not ports -->
+                <ScrollViewer IsVisible="{Binding IsOverview}" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="28,0,28,28" Spacing="20">
+                        <Border Classes="attention" IsVisible="{Binding Overview.HasAttention}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <c:Icon Data="{StaticResource Icon.Alert}" Size="15" Foreground="{DynamicResource Caution}" VerticalAlignment="Center" />
+                                    <TextBlock Classes="label" Foreground="{DynamicResource Text.Primary}" Text="Needs attention" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding Overview.Attention}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AttentionViewModel">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                                                <TextBlock VerticalAlignment="Center" Classes="body wrap" Text="{Binding Text}" />
+                                                <Button Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Classes="link" Content="{Binding ActionText}" Click="OnAttentionAction" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Classes="muted" Text="Discovering what's running…" IsVisible="{Binding EmptyState, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Discovering}" />
+                        <TextBlock Classes="muted wrap" Text="Nothing is listening. Start a dev server, database or any service and it appears here." IsVisible="{Binding Overview.IsEmpty}" />
+
+                        <ItemsControl ItemsSource="{Binding Overview.Groups}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="20" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:AppGroupViewModel">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="2,0">
+                                            <c:Icon Data="{StaticResource Icon.Folder}" Size="15" Foreground="{DynamicResource Text.Tertiary}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Margin="8,0,0,0" Classes="title" Text="{Binding Name}" VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="2" Margin="10,1,0,0" Orientation="Horizontal" Spacing="4" IsVisible="{Binding HasBranches}" VerticalAlignment="Center">
+                                                <c:Icon Data="{StaticResource Icon.Branch}" Size="12" Foreground="{DynamicResource Text.Tertiary}" VerticalAlignment="Center" />
+                                                <TextBlock Classes="micro mono" Text="{Binding Branches}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="4" Classes="caption" Foreground="{DynamicResource Text.Tertiary}" Text="{Binding Summary}" VerticalAlignment="Center" />
+                                        </Grid>
+                                        <Border Classes="app-card">
+                                            <ItemsControl ItemsSource="{Binding Apps}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:AppViewModel">
+                                                        <Grid Classes="app-row" Classes.orphaned="{Binding IsOrphaned}" ColumnDefinitions="Auto,*,90,70,70,110,Auto" Background="Transparent" PointerPressed="OnAppPressed">
+                                                            <Ellipse Classes="dot" VerticalAlignment="Center"
+                                                                     Classes.orphaned="{Binding IsOrphaned}" Classes.closed="{Binding IsUnhealthy}" Classes.transitional="{Binding IsSystem}" />
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                    <TextBlock Classes="body" FontWeight="SemiBold" Text="{Binding Name}" VerticalAlignment="Center" />
+                                                                    <Border Classes="agent-tag" Classes.orphaned="{Binding IsOrphaned}" IsVisible="{Binding HasAgent}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                            <c:Icon Data="{StaticResource Icon.Agent}" Size="11" VerticalAlignment="Center" />
+                                                                            <TextBlock Text="{Binding AgentTagText}" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                                                    <TextBlock Classes="micro mono" Text="{Binding PortsText}" ToolTip.Tip="{Binding AllPortsText}" />
+                                                                    <TextBlock Classes="micro" Text="{Binding Kind}" IsVisible="{Binding HasKind}" />
+                                                                    <TextBlock Classes="micro" Text="{Binding ProcessesText}" />
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="2" Classes="mono" FontSize="12" Text="{Binding MemoryText}" VerticalAlignment="Center" HorizontalAlignment="Right" ToolTip.Tip="Memory, including child processes" />
+                                                            <TextBlock Grid.Column="3" Classes="mono" FontSize="12" Foreground="{DynamicResource Text.Secondary}" Text="{Binding CpuText}" VerticalAlignment="Center" HorizontalAlignment="Right" ToolTip.Tip="CPU, % of one core" />
+                                                            <TextBlock Grid.Column="4" Classes="micro" Text="{Binding UptimeText}" VerticalAlignment="Center" HorizontalAlignment="Right" />
+                                                            <TextBlock Grid.Column="5" Classes="status" Margin="20,0,0,0" Text="{Binding StatusText}" VerticalAlignment="Center"
+                                                                       Classes.orphaned="{Binding IsOrphaned}" Classes.closed="{Binding IsUnhealthy}" />
+                                                            <StackPanel Grid.Column="6" Classes="app-actions" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                                                <Button Classes="icon-small" Click="OnAppOpen" ToolTip.Tip="Open in browser" IsVisible="{Binding IsHttp}">
+                                                                    <c:Icon Data="{StaticResource Icon.External}" Size="15" />
+                                                                </Button>
+                                                                <Button Classes="icon-small destructive" Click="OnAppStop" ToolTip.Tip="Stop this app and its processes" IsVisible="{Binding !IsSystem}">
+                                                                    <c:Icon Data="{StaticResource Icon.Power}" Size="15" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid RowDefinitions="34,*" IsVisible="{Binding IsPortsView}">
                     <!-- Column headers -->
                     <Grid Name="HeaderRow" Margin="44,0,44,0" ColumnDefinitions="110,*,88,116,190,132">
                         <Button Classes="th" Grid.Column="0" Tag="Port" Command="{Binding SortCommand}" CommandParameter="Port" />

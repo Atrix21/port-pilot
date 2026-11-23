@@ -17,5 +17,8 @@ public sealed record PortEntry(PortBinding Binding, ProcessDetails Process, Know
 /// </summary>
 public sealed record PortSnapshot(IReadOnlyList<PortEntry> Entries, DateTimeOffset Timestamp, TimeSpan Duration)
 {
+    /// <summary>Endpoints grouped into apps with their CPU and memory; only when the scan was asked for it.</summary>
+    public IReadOnlyList<Apps.AppInfo>? Apps { get; init; }
+
     public static PortSnapshot Empty { get; } = new([], DateTimeOffset.MinValue, TimeSpan.Zero);
 }

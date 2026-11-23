@@ -20,7 +20,15 @@ internal sealed class McpServer
 {
     private const string FallbackProtocol = "2025-06-18";
 
-    private readonly IPortScanner _scanner = PlatformServices.CreateScanner();
+    // Apps (with CPU and memory) are worked out only when a tool runs; the server is idle otherwise.
+    private readonly IPortScanner _scanner = CreateScanner();
+
+    private static IPortScanner CreateScanner()
+    {
+        var scanner = PlatformServices.CreateScanner();
+        scanner.IncludeApps = true;
+        return scanner;
+    }
     private readonly IProcessTerminator _terminator = PlatformServices.CreateProcessTerminator();
     private readonly Stream _out = Console.OpenStandardOutput();
 
@@ -35,6 +43,10 @@ internal sealed class McpServer
             "What a project is running right now: its ports, processes, health of each HTTP server, and anything an ended agent session left behind. Call this before starting a dev server, to reuse one that is already running.",
             """{"type":"object","properties":{"path":{"type":"string","description":"A directory inside the project. Defaults to the server's working directory."}}}""",
             ProjectStatusAsync),
+        new("list_apps",
+            "What is running, as a person would describe it: apps (a dev server with its workers, a database, a container) grouped by git project, each with its ports, CPU %, memory (including child processes), uptime, the agent that started it, and whether it was left behind. Editors, language servers and build daemons are left out.",
+            """{"type":"object","properties":{"project":{"type":"string","description":"Only this git project."}}}""",
+            ListAppsAsync),
         new("port_owner",
             "Explain what is using a port: process, PID, command line, project, agent, and a health check.",
             """{"type":"object","properties":{"port":{"type":"integer"}},"required":["port"]}""",
@@ -215,7 +227,8 @@ internal sealed class McpServer
     {
         var path = Str(args, "path") ?? Directory.GetCurrentDirectory();
         var project = ProjectResolver.Resolve(Path.GetFullPath(path));
-        var entries = _scanner.Scan(false).Entries
+        var snapshot = _scanner.Scan(false);
+        var entries = snapshot.Entries
             .Where(e => project is null
                 ? e.Process.WorkingDirectory?.StartsWith(path, StringComparison.Ordinal) == true
                 : e.Process.Project?.Name == project.Name)
@@ -239,6 +252,11 @@ internal sealed class McpServer
             }
 
             w.WriteNumber("ports", entries.Count);
+            var apps = AppsCommand.Visible(snapshot.Apps ?? [], tooling: false)
+                .Where(a => project is null ? a.WorkingDirectory?.StartsWith(path, StringComparison.Ordinal) == true : a.Project?.Name == project.Name)
+                .ToList();
+            w.WritePropertyName("apps");
+            AppsCommand.WriteApps(w, apps);
             w.WriteNumber("leftovers", entries.Where(e => e.Process.IsOrphaned).Select(e => e.ProcessId).Distinct().Count());
             w.WriteStartArray("running");
             foreach (var e in entries)
@@ -249,6 +267,15 @@ internal sealed class McpServer
             w.WriteEndArray();
             w.WriteEndObject();
         });
+    }
+
+    private Task<string> ListAppsAsync(JsonElement args)
+    {
+        var project = Str(args, "project");
+        var apps = AppsCommand.Visible(_scanner.Scan(false).Apps ?? [], tooling: false)
+            .Where(a => project is null || a.Project?.Name == project)
+            .ToList();
+        return Task.FromResult(Json(w => AppsCommand.WriteApps(w, apps)));
     }
 
     private async Task<string> PortOwnerAsync(JsonElement args)

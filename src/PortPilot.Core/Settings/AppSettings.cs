@@ -54,6 +54,9 @@ public sealed record AppSettings
 
     public bool HasShownTrayHint { get; init; }
 
+    /// <summary>Show apps grouped by project (true) or the full port table (false).</summary>
+    public bool OverviewMode { get; init; } = true;
+
     /// <summary>Extra agent executables to recognise, on top of the built-in list (Claude Code, Codex, Gemini CLI, Aider, …).</summary>
     /// <remarks>Comma-separated, so the record keeps value equality.</remarks>
     public string CustomAgents { get; init; } = "";

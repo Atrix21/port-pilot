@@ -14,6 +14,7 @@ internal static unsafe partial class Libc
     public const int SIGTERM = 15;
 
     public const int _SC_CLK_TCK = 2;
+    public const int _SC_PAGESIZE = 30;
 
     [LibraryImport("libc", SetLastError = true)]
     public static partial nint readlink(byte* path, byte* buffer, nint size);

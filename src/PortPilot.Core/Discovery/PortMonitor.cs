@@ -79,6 +79,20 @@ public sealed class PortMonitor : IAsyncDisposable
 
     public bool IsRunning => _loop is { IsCompleted: false };
 
+    /// <summary>Group endpoints into apps with CPU and memory (see <see cref="IPortScanner.IncludeApps"/>).</summary>
+    public bool IncludeApps
+    {
+        get => _scanner.IncludeApps;
+        set
+        {
+            if (_scanner.IncludeApps != value)
+            {
+                _scanner.IncludeApps = value;
+                Wake();
+            }
+        }
+    }
+
     public void Start() => _loop ??= Task.Run(() => RunAsync(_shutdown.Token));
 
     /// <summary>Requests an immediate scan (also while paused).</summary>
