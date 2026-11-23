@@ -1,18 +1,77 @@
 name: CI
 
+# Only the jobs whose inputs changed run: a README edit runs nothing, an extension change runs only
+# the extension job, and so on. A newer push to the same branch cancels the older run.
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'Casks/**', 'bucket/**', 'packaging/winget/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**', 'LICENSE', 'Casks/**', 'bucket/**', 'packaging/winget/**']
 
 permissions:
   contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      windows: ${{ steps.filter.outputs.windows }}
+      engine: ${{ steps.filter.outputs.engine }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      vscode: ${{ steps.filter.outputs.vscode }}
+      jetbrains: ${{ steps.filter.outputs.jetbrains }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared: &shared
+              - 'src/PortPilot.Core/**'
+              - 'src/PortPilot.Presentation/**'
+              - 'tests/**'
+              - 'Directory.Build.props'
+              - 'PortPilot.slnx'
+              - '.github/workflows/ci.yml'
+            engine:
+              - *shared
+              - 'src/PortPilot.Cli/**'
+            windows:
+              - *shared
+              - 'src/PortPilot.App/**'
+            desktop:
+              - *shared
+              - 'src/PortPilot.Cli/**'
+              - 'src/PortPilot.Desktop/**'
+              - 'packaging/linux/**'
+              - 'packaging/macos/**'
+            vscode:
+              - 'extensions/vscode/**'
+              - 'src/PortPilot.Core/**'
+              - 'src/PortPilot.Cli/**'
+              - '.github/workflows/ci.yml'
+            jetbrains:
+              - 'extensions/jetbrains/**'
+              - '.github/workflows/ci.yml'
+
   build:
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -25,9 +84,17 @@ jobs:
         run: dotnet build src/PortPilot.App -c Release
 
   linux:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true' || needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -56,9 +123,17 @@ jobs:
           ls shots/main-dark.png shots/inspector-light.png
 
   macos:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true' || needs.changes.outputs.desktop == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -85,9 +160,17 @@ jobs:
         run: packaging/macos/make-app.sh out 0.0.0-ci osx-arm64 dist
 
   vscode-extension:
+    needs: changes
+    if: needs.changes.outputs.vscode == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -96,6 +179,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: extensions/vscode/package-lock.json
 
       - name: Build the CLI it drives
         run: dotnet publish src/PortPilot.Cli -c Release -r linux-x64 -o out
@@ -109,6 +194,8 @@ jobs:
           ./package.sh linux-x64 "$GITHUB_WORKSPACE/out/portpilot"
 
   jetbrains-plugin:
+    needs: changes
+    if: needs.changes.outputs.jetbrains == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -117,6 +204,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
       - name: Build plugin
         working-directory: extensions/jetbrains

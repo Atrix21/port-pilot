@@ -25,14 +25,19 @@ on:
         description: Publish as a pre-release
         type: boolean
         default: false
+      from-run:
+        description: Publish the VSIX files built by this earlier run (its ID) instead of building again
+        default: ''
   push:
     tags: ['vscode-v*']
 
 permissions:
   contents: read
+  actions: read   # download artifacts from an earlier run (from-run)
 
 jobs:
   package:
+    if: ${{ !inputs.from-run }}
     strategy:
       fail-fast: true
       matrix:
@@ -55,6 +60,12 @@ jobs:
           [ -z "$v" ] && v="${GITHUB_REF_NAME#vscode-v}"
           echo "version=${v#v}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props') }}
+          restore-keys: nuget-${{ runner.os }}-${{ runner.arch }}-
+
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
@@ -62,6 +73,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: extensions/vscode/package-lock.json
 
       - name: Package
         shell: bash
@@ -81,6 +94,8 @@ jobs:
 
   publish:
     needs: package
+    # Runs after a fresh build, or straight away when publishing an earlier run's files.
+    if: ${{ !cancelled() && (needs.package.result == 'success' || (needs.package.result == 'skipped' && inputs.from-run)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # attach to the GitHub release
@@ -99,6 +114,8 @@ jobs:
           pattern: vsix-*
           merge-multiple: true
           path: vsix
+          run-id: ${{ inputs.from-run || github.run_id }}
+          github-token: ${{ github.token }}
 
       - uses: actions/setup-node@v4
         with:
@@ -113,7 +130,7 @@ jobs:
         run: gh release upload '${{ inputs.release-tag }}' vsix/*.vsix --repo '${{ github.repository }}' --clobber
 
       - name: Publish to the VS Code Marketplace (Trusted Publishing)
-        run: npx --yes @vscode/vsce@^4.1.1 publish --oidc $PRE_RELEASE --packagePath vsix/*.vsix
+        run: npx --yes @vscode/vsce@^4.1.1 publish --oidc --skip-duplicate $PRE_RELEASE --packagePath vsix/*.vsix
 
       # Open VSX: trusted publishing once the namespace has an owner who registered this workflow
       # (set repository variable OPENVSX_TRUSTED_PUBLISHING=true), otherwise the OVSX_PAT token.
@@ -131,4 +148,4 @@ jobs:
             npx --yes ovsx@^1.4.0 create-namespace "$namespace" || true
             auth=""
           fi
-          for f in vsix/*.vsix; do npx --yes ovsx@^1.4.0 publish "$f" $PRE_RELEASE $auth; done
+          for f in vsix/*.vsix; do npx --yes ovsx@^1.4.0 publish "$f" --skip-duplicate $PRE_RELEASE $auth; done
