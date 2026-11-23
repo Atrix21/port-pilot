@@ -4,9 +4,9 @@ using Avalonia.Controls.Documents;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using PortPilot.Linux.Services;
+using PortPilot.Desktop.Services;
 
-namespace PortPilot.Linux.Controls;
+namespace PortPilot.Desktop.Controls;
 
 /// <summary>
 /// The application's own icon when the desktop knows one, otherwise a monogram tile.

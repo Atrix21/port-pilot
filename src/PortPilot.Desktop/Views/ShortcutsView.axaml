@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:c="using:PortPilot.Linux.Controls"
-             xmlns:v="using:PortPilot.Linux.Views"
+             xmlns:c="using:PortPilot.Desktop.Controls"
+             xmlns:v="using:PortPilot.Desktop.Views"
              xmlns:vm="using:PortPilot.App.ViewModels"
-             x:Class="PortPilot.Linux.Views.ShortcutsView"
+             x:Class="PortPilot.Desktop.Views.ShortcutsView"
              x:DataType="vm:MainViewModel"
              Width="620">
     <UserControl.DataTemplates>

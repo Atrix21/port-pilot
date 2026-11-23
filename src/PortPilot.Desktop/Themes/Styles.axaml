@@ -1,6 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:c="using:PortPilot.Linux.Controls">
+        xmlns:c="using:PortPilot.Desktop.Controls">
 
     <!-- PortPilot design system for Avalonia: the same tokens, type scale and components as the WPF app. -->
 

@@ -3,7 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Media;
 
-namespace PortPilot.Linux.Controls;
+namespace PortPilot.Desktop.Controls;
 
 /// <summary>
 /// Draws a 24×24 icon geometry as round-capped strokes at a constant stroke width, whatever the size.

@@ -2,7 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using PortPilot.App.ViewModels;
 
-namespace PortPilot.Linux.Views;
+namespace PortPilot.Desktop.Views;
 
 public sealed partial class InspectorView : UserControl
 {

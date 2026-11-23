@@ -1,7 +1,7 @@
 using Avalonia;
-using PortPilot.Linux.Services;
+using PortPilot.Desktop.Services;
 
-namespace PortPilot.Linux;
+namespace PortPilot.Desktop;
 
 internal static class Program
 {

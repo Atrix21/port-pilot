@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Avalonia.Media.Imaging;
 
-namespace PortPilot.Linux.Services;
+namespace PortPilot.Desktop.Services;
 
 /// <summary>
 /// Finds an application's icon the way a Linux desktop does: match the executable against the

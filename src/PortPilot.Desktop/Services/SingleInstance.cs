@@ -1,7 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
 
-namespace PortPilot.Linux.Services;
+namespace PortPilot.Desktop.Services;
 
 /// <summary>
 /// One PortPilot per session, coordinated over a Unix socket in <c>$XDG_RUNTIME_DIR</c>. A second launch

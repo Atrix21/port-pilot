@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>PortPilot.Linux</RootNamespace>
+    <RootNamespace>PortPilot.Desktop</RootNamespace>
     <AssemblyName>portpilot-desktop</AssemblyName>
     <AssemblyTitle>PortPilot</AssemblyTitle>
     <Description>Live localhost port and process monitor for developers.</Description>

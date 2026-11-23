@@ -22,6 +22,11 @@ public static class ProcessLogs
 
     public static LogTail Read(int pid, int lines = 40)
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            return ReadMac(pid, lines);
+        }
+
         if (!OperatingSystem.IsLinux())
         {
             return LogTail.None("Reading another process's output isn't possible on Windows.");
@@ -63,6 +68,20 @@ public static class ProcessLogs
             null => "Its output isn't readable from outside.",
             _ => $"Its output goes to {terminal}, which only the reader on the other end can see. Redirect it to a file (e.g. > dev.log) to see it here.",
         });
+    }
+
+    /// <summary>macOS: libproc gives the path behind stdout/stderr when they are redirected to a file.</summary>
+    private static LogTail ReadMac(int pid, int lines)
+    {
+        foreach (var fd in new[] { 1, 2 })
+        {
+            if (Processes.MacProc.DescriptorPath(pid, fd) is { } path && !path.StartsWith("/dev/", StringComparison.Ordinal) && File.Exists(path))
+            {
+                return new LogTail(path, Tail(path, lines), null);
+            }
+        }
+
+        return LogTail.None("Its output goes to a terminal or a pipe, which only the reader on the other end can see. Redirect it to a file (e.g. > dev.log) to see it here.");
     }
 
     private static List<string> Tail(string path, int count)

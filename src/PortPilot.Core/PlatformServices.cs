@@ -10,7 +10,7 @@ namespace PortPilot.Core;
 /// </summary>
 public static class PlatformServices
 {
-    public static bool IsSupported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
+    public static bool IsSupported => OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS();
 
     public static IPortTableReader CreatePortTableReader(ILoggerFactory? logs = null)
     {
@@ -18,6 +18,11 @@ public static class PlatformServices
         if (OperatingSystem.IsLinux())
         {
             return new ProcNetPortTableReader(logger: logs.CreateLogger<ProcNetPortTableReader>());
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return new MacPortTableReader(logs.CreateLogger<MacPortTableReader>());
         }
 
         EnsureWindows();
@@ -32,6 +37,11 @@ public static class PlatformServices
             return new LinuxProcessInfoProvider(logs.CreateLogger<LinuxProcessInfoProvider>(), AgentLineage.DefaultPath);
         }
 
+        if (OperatingSystem.IsMacOS())
+        {
+            return new MacProcessInfoProvider(logs.CreateLogger<MacProcessInfoProvider>(), AgentLineage.DefaultPath);
+        }
+
         EnsureWindows();
         return new ProcessInfoProvider(logger: logs.CreateLogger<ProcessInfoProvider>(), lineagePath: AgentLineage.DefaultPath);
     }
@@ -39,7 +49,7 @@ public static class PlatformServices
     public static IProcessTerminator CreateProcessTerminator(ILoggerFactory? logs = null)
     {
         logs ??= NullLoggerFactory.Instance;
-        if (OperatingSystem.IsLinux())
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
             return new LinuxProcessTerminator(logs.CreateLogger<LinuxProcessTerminator>());
         }
@@ -53,13 +63,15 @@ public static class PlatformServices
 
     /// <summary>Fresh, uncached details for one process.</summary>
     public static Model.ProcessDetails Inspect(int processId) =>
-        OperatingSystem.IsLinux() ? LinuxProcessInfoProvider.Inspect(processId) : ProcessInfoProvider.Inspect(processId);
+        OperatingSystem.IsLinux() ? LinuxProcessInfoProvider.Inspect(processId)
+        : OperatingSystem.IsMacOS() ? MacProcessInfoProvider.Inspect(processId)
+        : ProcessInfoProvider.Inspect(processId);
 
     private static void EnsureWindows()
     {
         if (!OperatingSystem.IsWindows())
         {
-            throw new PlatformNotSupportedException("PortPilot supports Windows and Linux.");
+            throw new PlatformNotSupportedException("PortPilot supports Windows, Linux and macOS.");
         }
     }
 }

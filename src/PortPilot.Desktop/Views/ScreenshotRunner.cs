@@ -4,7 +4,7 @@ using Avalonia.Threading;
 using PortPilot.App.ViewModels;
 using PortPilot.Core.Settings;
 
-namespace PortPilot.Linux.Views;
+namespace PortPilot.Desktop.Views;
 
 /// <summary>Drives the window through its main states and renders each to a PNG.</summary>
 internal static class ScreenshotRunner

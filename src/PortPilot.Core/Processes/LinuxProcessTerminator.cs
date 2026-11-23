@@ -6,7 +6,7 @@ using PortPilot.Core.Interop;
 namespace PortPilot.Core.Processes;
 
 /// <summary>
-/// Terminates processes on Linux: SIGTERM first so the process can clean up, then SIGKILL if it
+/// Terminates processes on Linux and macOS: SIGTERM first so the process can clean up, then SIGKILL if it
 /// has not exited within the grace period.
 /// </summary>
 public sealed class LinuxProcessTerminator(ILogger<LinuxProcessTerminator>? logger = null) : IProcessTerminator
@@ -24,12 +24,12 @@ public sealed class LinuxProcessTerminator(ILogger<LinuxProcessTerminator>? logg
             return TerminationAccess.Protected;
         }
 
-        if (!ProcFs.TryReadStat(processId, out var stat) || stat.IsGone)
+        if (Probe(processId) is not { } stat)
         {
             return TerminationAccess.NotRunning;
         }
 
-        if (IsKernelThread(processId, stat))
+        if (stat.IsKernelThread)
         {
             return TerminationAccess.Protected;
         }
@@ -53,23 +53,23 @@ public sealed class LinuxProcessTerminator(ILogger<LinuxProcessTerminator>? logg
             return Log(new TerminationResult(TerminationOutcome.Protected, pid, "This process cannot be terminated."));
         }
 
-        if (!ProcFs.TryReadStat(pid, out var stat) || stat.IsGone)
+        if (Probe(pid) is not { } stat)
         {
             return Log(new TerminationResult(TerminationOutcome.AlreadyExited, pid));
         }
 
-        if (IsKernelThread(pid, stat))
+        if (stat.IsKernelThread)
         {
             return Log(new TerminationResult(TerminationOutcome.Protected, pid, "Kernel threads cannot be terminated."));
         }
 
         // Between the moment the user confirmed and now the PID may have been recycled.
-        if (expectedStartTime is { } expected && ProcFs.ToStartTime(stat.StartTicks) != expected)
+        if (expectedStartTime is { } expected && stat.Start != expected)
         {
             return Log(new TerminationResult(TerminationOutcome.ProcessChanged, pid, "The PID now belongs to a different process."));
         }
 
-        var startTicks = stat.StartTicks;
+        var startTicks = stat.Start.UtcTicks;
         var failure = Signal(pid, Libc.SIGTERM);
         if (failure is not null)
         {
@@ -115,7 +115,7 @@ public sealed class LinuxProcessTerminator(ILogger<LinuxProcessTerminator>? logg
         var deadline = DateTime.UtcNow + timeout;
         while (true)
         {
-            if (!ProcFs.TryReadStat(pid, out var stat) || stat.IsGone || stat.StartTicks != startTicks)
+            if (Probe(pid) is not { } stat || stat.Start.UtcTicks != startTicks)
             {
                 return true;
             }
@@ -131,7 +131,20 @@ public sealed class LinuxProcessTerminator(ILogger<LinuxProcessTerminator>? logg
 
     private static bool IsProtected(int pid) => pid <= 1 || pid == Environment.ProcessId;
 
-    private static bool IsKernelThread(int pid, ProcFs.Stat stat) => pid == 2 || stat.ParentId == 2;
+    private readonly record struct ProcessState(DateTimeOffset Start, bool IsKernelThread);
+
+    /// <summary>A live (non-zombie) process's start time, on Linux (procfs) or macOS (libproc).</summary>
+    private static ProcessState? Probe(int pid)
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return MacProc.TryGetBsdInfo(pid, out var info) && !info.IsZombie ? new ProcessState(info.StartTime, IsKernelThread: false) : null;
+        }
+
+        return ProcFs.TryReadStat(pid, out var stat) && !stat.IsGone
+            ? new ProcessState(ProcFs.ToStartTime(stat.StartTicks), pid == 2 || stat.ParentId == 2)
+            : null;
+    }
 
     private TerminationResult Log(TerminationResult result)
     {

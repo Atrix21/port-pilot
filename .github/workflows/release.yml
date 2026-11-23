@@ -83,7 +83,7 @@ jobs:
           dotnet test tests/PortPilot.Core.Tests -c Release
           name="portpilot-$version-${{ matrix.rid }}"
           dotnet publish src/PortPilot.Cli -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
-          dotnet publish src/PortPilot.Linux -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
+          dotnet publish src/PortPilot.Desktop -c Release -r ${{ matrix.rid }} -p:Version=$version -o "out/$name"
           cp packaging/linux/install.sh packaging/linux/portpilot.desktop "out/$name/"
           cp docs/PortPilot-512.png "out/$name/portpilot.png"
           mkdir dist
@@ -99,6 +99,78 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload '${{ github.ref_name }}' dist/*
+
+  # PortPilot.app (desktop + terminal app) for Apple silicon and Intel Macs.
+  macos:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - rid: osx-arm64
+            runner: macos-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test, publish and bundle
+        run: |
+          version='${{ github.ref_name }}'
+          version="${version#v}"
+          dotnet test tests/PortPilot.Core.Tests -c Release
+          dotnet publish src/PortPilot.Cli -c Release -r ${{ matrix.rid }} -p:Version=$version -o out
+          dotnet publish src/PortPilot.Desktop -c Release -r ${{ matrix.rid }} -p:Version=$version -o out
+          packaging/macos/make-app.sh out "$version" ${{ matrix.rid }} dist
+          (cd dist && shasum -a 256 *.zip > "SHA256SUMS-${{ matrix.rid }}.txt")
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*.zip
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ github.ref_name }}' dist/*.zip dist/*.txt
+
+  # Point the Homebrew cask at the new release.
+  homebrew:
+    needs: macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Update Casks/portpilot.rb
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version='${{ github.ref_name }}'
+          version="${version#v}"
+          gh release download '${{ github.ref_name }}' --pattern 'SHA256SUMS-osx-*.txt'
+          arm=$(awk '{print $1}' SHA256SUMS-osx-arm64.txt)
+          intel=$(awk '{print $1}' SHA256SUMS-osx-x64.txt)
+          python3 - "$version" "$arm" "$intel" <<'PY'
+          import re, sys
+          version, arm, intel = sys.argv[1:]
+          path = "Casks/portpilot.rb"
+          s = open(path).read()
+          s = re.sub(r'version "[^"]+"', f'version "{version}"', s)
+          s = re.sub(r'sha256 arm:\s+"[0-9a-f]+",\s+intel: "[0-9a-f]+"', f'sha256 arm:   "{arm}",\n         intel: "{intel}"', s)
+          open(path, "w").write(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Casks/portpilot.rb
+          git diff --cached --quiet || (git commit -m "Homebrew: PortPilot $version" && git push)
 
   # Point the Scoop bucket at the new release, then prove it installs.
   scoop-manifest:

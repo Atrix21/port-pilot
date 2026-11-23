@@ -189,7 +189,7 @@ Settings live in `~/.config/PortPilot/settings.json` and logs in `~/.local/share
 Build it yourself with the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0):
 
 ```sh
-dotnet publish src/PortPilot.Linux -c Release -r linux-x64 -o out   # desktop app
+dotnet publish src/PortPilot.Desktop -c Release -r linux-x64 -o out   # desktop app
 dotnet publish src/PortPilot.Cli -c Release -r linux-x64 -o out     # terminal app
 ```
 
@@ -272,7 +272,7 @@ src/PortPilot.Core          The engine. No UI. Port tables, process inspection, 
                             change tracking, filtering, settings, logging.
 src/PortPilot.Presentation  View models and MVVM plumbing shared by both desktop apps. No UI framework.
 src/PortPilot.App           The Windows app (WPF). A hand-built design system and Windows integration.
-src/PortPilot.Linux         The Linux app (Avalonia). The same design system, ported, plus Linux integration.
+src/PortPilot.Desktop         The Linux app (Avalonia). The same design system, ported, plus Linux integration.
 src/PortPilot.Cli           The terminal app (Linux and Windows). Native AOT, live view and commands.
 tests/PortPilot.Core.Tests  69 tests. They open real sockets, kill real (consenting) processes, and impersonate Claude.
 tools/PortPilot.IconGen     Draws the app icon in code, because the icon is also code.

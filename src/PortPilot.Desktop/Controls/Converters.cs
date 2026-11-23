@@ -2,7 +2,7 @@ using System.Globalization;
 using Avalonia.Data;
 using Avalonia.Data.Converters;
 
-namespace PortPilot.Linux.Controls;
+namespace PortPilot.Desktop.Controls;
 
 /// <summary>
 /// True when the bound value's text equals the parameter. Two-way, so a group of radio buttons can

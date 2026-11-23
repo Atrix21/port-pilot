@@ -19,6 +19,16 @@ public static class ProcessTree
                 }
             }
         }
+        else if (OperatingSystem.IsMacOS())
+        {
+            foreach (var pid in MacProc.ListPids())
+            {
+                if (MacProc.TryGetBsdInfo(pid, out var info) && !info.IsZombie)
+                {
+                    map[pid] = info.ParentId;
+                }
+            }
+        }
         else if (OperatingSystem.IsWindows())
         {
             foreach (var (pid, info) in NativeProcess.SnapshotProcessNames())
@@ -63,6 +73,11 @@ public static class ProcessTree
             return ProcFs.TryReadStat(pid, out var stat) ? AgentDetector.FindAncestor(pid, stat.ParentId) : null;
         }
 
+        if (OperatingSystem.IsMacOS())
+        {
+            return MacProc.TryGetBsdInfo(pid, out var info) ? MacProcessInfoProvider.FindAncestor(info.ParentId) : null;
+        }
+
         if (OperatingSystem.IsWindows())
         {
             var names = NativeProcess.SnapshotProcessNames();
@@ -75,6 +90,7 @@ public static class ProcessTree
     /// <summary>The start time of a running process, or null.</summary>
     public static DateTimeOffset? StartTimeOf(int pid) =>
         OperatingSystem.IsLinux() ? LinuxProcessInfoProvider.StartTimeOf(pid)
+        : OperatingSystem.IsMacOS() ? MacProc.StartTimeOf(pid)
         : OperatingSystem.IsWindows() ? ProcessInfoProvider.StartTimeOf(pid)
         : null;
 

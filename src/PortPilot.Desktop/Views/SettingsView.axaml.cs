@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace PortPilot.Linux.Views;
+namespace PortPilot.Desktop.Views;
 
 public sealed partial class SettingsView : UserControl
 {

@@ -7,9 +7,9 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using PortPilot.App.ViewModels;
-using PortPilot.Linux.Controls;
+using PortPilot.Desktop.Controls;
 
-namespace PortPilot.Linux.Views;
+namespace PortPilot.Desktop.Views;
 
 public sealed partial class MainWindow : Window
 {

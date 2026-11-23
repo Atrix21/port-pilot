@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 using PortPilot.App.Services;
 using PortPilot.Core.Settings;
 
-namespace PortPilot.Linux.Services;
+namespace PortPilot.Desktop.Services;
 
 public sealed class AvaloniaUiDispatcher : IUiDispatcher
 {
@@ -18,13 +18,19 @@ public sealed class AvaloniaUiDispatcher : IUiDispatcher
     public void Schedule(TimeSpan delay, Action action) => DispatcherTimer.RunOnce(action, delay);
 }
 
-/// <summary>Opens URLs and folders with the desktop's handlers, and talks to the clipboard.</summary>
+/// <summary>Opens URLs and folders with the desktop's handlers (xdg-open, or open on macOS), and talks to the clipboard.</summary>
 public sealed class LinuxShellService(Func<TopLevel?> topLevel, ILogger<LinuxShellService> log) : IShellService
 {
-    public bool OpenUrl(string url) => Run("xdg-open", url);
+    public bool OpenUrl(string url) => Run(OperatingSystem.IsMacOS() ? "open" : "xdg-open", url);
 
     public bool RevealInExplorer(string path)
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            // Finder: select the file, or open the folder.
+            return File.Exists(path) ? Run("open", "-R", path) : Run("open", path);
+        }
+
         // Ask the file manager to select the file (works with Nautilus, Dolphin, Nemo, Caja, Thunar);
         // fall back to opening the containing folder.
         var uri = new Uri(path).AbsoluteUri;
@@ -116,18 +122,26 @@ public sealed class ThemeService : IThemeService
     }
 }
 
-/// <summary>Start on login through an XDG autostart entry.</summary>
-public sealed class AutostartRegistration(ILogger<AutostartRegistration> log) : IStartupRegistration
+/// <summary>Start on login: an XDG autostart entry on Linux, a LaunchAgent on macOS.</summary>
+public sealed partial class AutostartRegistration(ILogger<AutostartRegistration> log) : IStartupRegistration
 {
+    private static string LaunchAgentPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "LaunchAgents", "com.portpilot.desktop.plist");
+
     private static string EntryPath => Path.Combine(
         Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } config ? config : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config"),
         "autostart",
         "portpilot.desktop");
 
-    public bool IsEnabled => File.Exists(EntryPath);
+    public bool IsEnabled => File.Exists(OperatingSystem.IsMacOS() ? LaunchAgentPath : EntryPath);
 
     public void SetEnabled(bool enabled)
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            SetLaunchAgent(enabled);
+            return;
+        }
+
         try
         {
             if (!enabled)
@@ -156,6 +170,41 @@ public sealed class AutostartRegistration(ILogger<AutostartRegistration> log) : 
     }
 }
 
+public sealed partial class AutostartRegistration
+{
+    private void SetLaunchAgent(bool enabled)
+    {
+        try
+        {
+            if (!enabled)
+            {
+                File.Delete(LaunchAgentPath);
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(LaunchAgentPath)!);
+            File.WriteAllText(LaunchAgentPath, $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                <plist version="1.0">
+                <dict>
+                    <key>Label</key><string>com.portpilot.desktop</string>
+                    <key>ProgramArguments</key>
+                    <array><string>{System.Security.SecurityElement.Escape(Environment.ProcessPath)}</string><string>--minimized</string></array>
+                    <key>RunAtLoad</key><true/>
+                    <key>ProcessType</key><string>Interactive</string>
+                </dict>
+                </plist>
+
+                """);
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Could not update the LaunchAgent");
+        }
+    }
+}
+
 /// <summary>
 /// Restarts PortPilot as root through polkit, so it can see and stop every user's processes.
 /// </summary>
@@ -165,6 +214,12 @@ public sealed class ElevationService(ILogger<ElevationService> log) : IElevation
 
     public bool TryRestartElevated()
     {
+        // A GUI running as root is not something macOS supports well; use sudo with the terminal app instead.
+        if (OperatingSystem.IsMacOS())
+        {
+            return false;
+        }
+
         try
         {
             // pkexec scrubs the environment; pass through what a GUI needs to reach the display.
@@ -215,10 +270,16 @@ public sealed class ElevationService(ILogger<ElevationService> log) : IElevation
 }
 
 /// <summary>Desktop notifications through <c>notify-send</c> (libnotify), which every major desktop provides.</summary>
-public sealed class NotificationService(ILogger<NotificationService> log) : INotificationService
+public sealed partial class NotificationService(ILogger<NotificationService> log) : INotificationService
 {
     public void Notify(string title, string message)
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            Run("osascript", "-e", $"display notification \"{Escape(message)}\" with title \"{Escape(title)}\"");
+            return;
+        }
+
         try
         {
             var info = new ProcessStartInfo("notify-send") { UseShellExecute = false };
@@ -232,6 +293,29 @@ public sealed class NotificationService(ILogger<NotificationService> log) : INot
         catch (Exception ex)
         {
             log.LogDebug(ex, "notify-send is not available");
+        }
+    }
+}
+
+public sealed partial class NotificationService
+{
+    private static string Escape(string text) => text.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
+
+    private void Run(string program, params string[] args)
+    {
+        try
+        {
+            var info = new ProcessStartInfo(program) { UseShellExecute = false };
+            foreach (var arg in args)
+            {
+                info.ArgumentList.Add(arg);
+            }
+
+            Process.Start(info)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            log.LogDebug(ex, "{Program} is not available", program);
         }
     }
 }

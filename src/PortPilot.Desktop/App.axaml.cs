@@ -15,10 +15,10 @@ using PortPilot.Core.Discovery;
 using PortPilot.Core.Logging;
 using PortPilot.Core.Processes;
 using PortPilot.Core.Settings;
-using PortPilot.Linux.Services;
-using PortPilot.Linux.Views;
+using PortPilot.Desktop.Services;
+using PortPilot.Desktop.Views;
 
-namespace PortPilot.Linux;
+namespace PortPilot.Desktop;
 
 /// <summary>
 /// Composition root and application lifetime: tray, logging, window and shutdown.
@@ -52,7 +52,7 @@ public sealed partial class App : Application, IAppShell
 
         _logs = new JsonFileLoggerFactory(JsonFileLoggerFactory.DefaultDirectory, options.Verbose ? LogLevel.Debug : LogLevel.Information);
         _log = _logs.CreateLogger<App>();
-        _log.LogInformation("PortPilot {Version} starting on Linux (demo: {Demo})", SettingsViewModel.VersionText, options.Demo);
+        _log.LogInformation("PortPilot {Version} starting on {Os} (demo: {Demo})", SettingsViewModel.VersionText, PlatformText.Os, options.Demo);
         Dispatcher.UIThread.UnhandledException += (_, e) =>
         {
             _log.LogError(e.Exception, "Unhandled UI exception");
@@ -297,6 +297,12 @@ internal static class TraySupport
 {
     public static bool IsAvailable()
     {
+        // The macOS menu bar always has room for status items.
+        if (OperatingSystem.IsMacOS())
+        {
+            return true;
+        }
+
         try
         {
             var info = new ProcessStartInfo("dbus-send")

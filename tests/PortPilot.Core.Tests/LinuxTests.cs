@@ -265,3 +265,95 @@ public sealed class LinuxProcessTests
         }
     }
 }
+
+[TestClass]
+[OSCondition(OperatingSystems.OSX)]
+public sealed class MacTests
+{
+    [TestMethod]
+    public void Finds_tcp_and_udp_endpoints_owned_by_this_process()
+    {
+        using var tcp4 = new TcpListener(IPAddress.Loopback, 0);
+        using var tcp6 = new TcpListener(IPAddress.IPv6Loopback, 0);
+        tcp4.Start();
+        tcp6.Start();
+        using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        var p4 = ((IPEndPoint)tcp4.LocalEndpoint).Port;
+        var p6 = ((IPEndPoint)tcp6.LocalEndpoint).Port;
+        var pu = ((IPEndPoint)udp.Client.LocalEndPoint!).Port;
+
+        var bindings = new MacPortTableReader().Read(false);
+
+        var t4 = bindings.Single(b => b.Protocol == TransportProtocol.Tcp && b.LocalPort == p4);
+        Assert.AreEqual(IPAddress.Loopback, t4.LocalAddress);
+        Assert.AreEqual(ConnectionState.Listening, t4.State);
+        Assert.AreEqual(Environment.ProcessId, t4.ProcessId);
+        Assert.AreEqual(IPAddress.IPv6Loopback, bindings.Single(b => b.Protocol == TransportProtocol.Tcp && b.LocalPort == p6).LocalAddress);
+        Assert.AreEqual(ConnectionState.Bound, bindings.Single(b => b.Protocol == TransportProtocol.Udp && b.LocalPort == pu).State);
+    }
+
+    [TestMethod]
+    public void All_states_mode_includes_established_connections()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var client = new TcpClient();
+        client.Connect(IPAddress.Loopback, port);
+        using var server = listener.AcceptTcpClient();
+        var clientPort = ((IPEndPoint)client.Client.LocalEndPoint!).Port;
+
+        var reader = new MacPortTableReader();
+        Assert.IsFalse(reader.Read(false).Any(b => b.LocalPort == clientPort));
+        var established = reader.Read(true).Single(b => b.LocalPort == clientPort && b.Protocol == TransportProtocol.Tcp);
+        Assert.AreEqual(ConnectionState.Established, established.State);
+        Assert.AreEqual(port, established.RemotePort);
+    }
+
+    [TestMethod]
+    public void Inspects_this_process_and_a_child()
+    {
+        var self = MacProcessInfoProvider.Inspect(Environment.ProcessId);
+        Assert.AreEqual(ProcessAccessLevel.Full, self.Access);
+        Assert.AreEqual(Environment.ProcessPath, self.ExecutablePath);
+        Assert.AreEqual(Directory.GetCurrentDirectory(), self.WorkingDirectory);
+        Assert.IsNotNull(self.StartTime);
+
+        using var child = Process.Start(new ProcessStartInfo("sleep", "30") { UseShellExecute = false })!;
+        try
+        {
+            var details = MacProcessInfoProvider.Inspect(child.Id);
+            Assert.AreEqual("sleep", details.ImageName);
+            Assert.AreEqual("sleep 30", details.CommandLine);
+            Assert.AreEqual(Environment.ProcessId, details.ParentProcessId);
+            Assert.IsTrue(Math.Abs((child.StartTime.ToUniversalTime() - details.StartTime!.Value.UtcDateTime).TotalSeconds) < 2);
+        }
+        finally
+        {
+            child.Kill();
+        }
+    }
+
+    [TestMethod]
+    public async Task Terminates_and_protects()
+    {
+        var terminator = new LinuxProcessTerminator();
+        using var child = Process.Start(new ProcessStartInfo("sleep", "30") { UseShellExecute = false })!;
+        var start = MacProcessInfoProvider.Inspect(child.Id).StartTime;
+        Assert.AreEqual(TerminationAccess.Allowed, terminator.ProbeAccess(child.Id));
+        Assert.AreEqual(TerminationOutcome.ProcessChanged, (await terminator.TerminateAsync(child.Id, start!.Value.AddSeconds(-30))).Outcome);
+        Assert.AreEqual(TerminationOutcome.Terminated, (await terminator.TerminateAsync(child.Id, start)).Outcome);
+        Assert.AreEqual(TerminationOutcome.Protected, (await terminator.TerminateAsync(1, null)).Outcome);
+    }
+
+    [TestMethod]
+    public void Scanner_joins_endpoints_with_process_details()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+        var entry = PlatformServices.CreateScanner().Scan(false).Entries.Single(e => e.Port == port && e.Binding.Protocol == TransportProtocol.Tcp);
+        Assert.AreEqual(Environment.ProcessPath, entry.Process.ExecutablePath);
+    }
+}

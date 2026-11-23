@@ -36,6 +36,8 @@ public static class AgentIntegration
             var dir = AppContext.BaseDirectory;
             string[] candidates = OperatingSystem.IsWindows()
                 ? [Path.Combine(dir, "cli", "portpilot.exe")]
+                : OperatingSystem.IsMacOS()
+                ? [Path.Combine(dir, "portpilot"), "/opt/homebrew/bin/portpilot", "/usr/local/bin/portpilot"]
                 : [Path.Combine(dir, "portpilot"), "/usr/local/bin/portpilot", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin", "portpilot")];
             return candidates.FirstOrDefault(File.Exists);
         }
@@ -163,7 +165,12 @@ public static class AgentIntegration
 
     private const string WindowsTask = "PortPilot Watcher";
 
-    public static bool IsWatcherInstalled => OperatingSystem.IsWindows() ? Run("schtasks", "/Query", "/TN", WindowsTask) : File.Exists(SystemdUnitPath);
+    private static string LaunchAgentPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "LaunchAgents", "com.portpilot.watch.plist");
+
+    public static bool IsWatcherInstalled =>
+        OperatingSystem.IsWindows() ? Run("schtasks", "/Query", "/TN", WindowsTask)
+        : OperatingSystem.IsMacOS() ? File.Exists(LaunchAgentPath)
+        : File.Exists(SystemdUnitPath);
 
     public static IntegrationResult InstallWatcher(string cliPath)
     {
@@ -189,6 +196,33 @@ public static class AgentIntegration
                 : "Wrote the service, but systemctl --user failed. Start it with: systemctl --user enable --now portpilot-watch");
         }
 
+        if (OperatingSystem.IsMacOS())
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(LaunchAgentPath)!);
+            File.WriteAllText(LaunchAgentPath, $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                <plist version="1.0">
+                <dict>
+                    <key>Label</key><string>com.portpilot.watch</string>
+                    <key>ProgramArguments</key>
+                    <array><string>{System.Security.SecurityElement.Escape(cliPath)}</string><string>watch</string></array>
+                    <key>RunAtLoad</key><true/>
+                    <key>KeepAlive</key><true/>
+                    <key>ProcessType</key><string>Background</string>
+                    <key>LowPriorityIO</key><true/>
+                    <key>Nice</key><integer>10</integer>
+                </dict>
+                </plist>
+
+                """);
+            Run("launchctl", "unload", LaunchAgentPath);
+            var ok = Run("launchctl", "load", "-w", LaunchAgentPath);
+            return new(ok, ok
+                ? "The watcher is running, and starts when you log in (LaunchAgent com.portpilot.watch)."
+                : $"Wrote the LaunchAgent, but launchctl failed. Load it with: launchctl load -w {LaunchAgentPath}");
+        }
+
         if (OperatingSystem.IsWindows())
         {
             var ok = Run("schtasks", "/Create", "/F", "/SC", "ONLOGON", "/TN", WindowsTask, "/TR", $"\"{cliPath}\" watch", "/RL", "LIMITED")
@@ -196,7 +230,7 @@ public static class AgentIntegration
             return new(ok, ok ? "The watcher is running, and starts when you sign in (scheduled task \"PortPilot Watcher\")." : "Couldn't create the scheduled task.");
         }
 
-        return new(false, "The watcher supports Linux and Windows.");
+        return new(false, "The watcher supports Linux, macOS and Windows.");
     }
 
     public static IntegrationResult UninstallWatcher()
@@ -206,6 +240,11 @@ public static class AgentIntegration
             Run("systemctl", "--user", "disable", "--now", "portpilot-watch.service");
             File.Delete(SystemdUnitPath);
             Run("systemctl", "--user", "daemon-reload");
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            Run("launchctl", "unload", "-w", LaunchAgentPath);
+            File.Delete(LaunchAgentPath);
         }
         else if (OperatingSystem.IsWindows())
         {

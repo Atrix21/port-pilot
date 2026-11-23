@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:c="using:PortPilot.Linux.Controls"
+             xmlns:c="using:PortPilot.Desktop.Controls"
              xmlns:vm="using:PortPilot.App.ViewModels"
-             x:Class="PortPilot.Linux.Views.SettingsView"
+             x:Class="PortPilot.Desktop.Views.SettingsView"
              x:DataType="vm:MainViewModel"
              Width="540">
     <UserControl.Styles>
