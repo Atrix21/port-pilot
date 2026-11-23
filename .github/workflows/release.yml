@@ -45,7 +45,7 @@ jobs:
           Pop-Location
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/*.exe
 
@@ -91,7 +91,7 @@ jobs:
           (cd dist && sha256sum *.tar.gz > "SHA256SUMS-${{ matrix.rid }}.txt")
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/*.tar.gz
 
@@ -129,7 +129,7 @@ jobs:
           (cd dist && shasum -a 256 *.zip > "SHA256SUMS-${{ matrix.rid }}.txt")
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/*.zip
 
