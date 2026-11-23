@@ -175,55 +175,11 @@ jobs:
   # VS Code / Cursor / Windsurf / VSCodium extension: one VSIX per platform, each with the native CLI inside.
   vscode-extension:
     needs: release
-    strategy:
-      matrix:
-        include:
-          - { target: linux-x64, rid: linux-x64, runner: ubuntu-latest }
-          - { target: linux-arm64, rid: linux-arm64, runner: ubuntu-24.04-arm }
-          - { target: darwin-arm64, rid: osx-arm64, runner: macos-latest }
-          - { target: darwin-x64, rid: osx-x64, runner: macos-15-intel }
-          - { target: win32-x64, rid: win-x64, runner: windows-latest }
-    runs-on: ${{ matrix.runner }}
-    env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Package
-        shell: bash
-        run: |
-          version='${{ github.ref_name }}'
-          version="${version#v}"
-          dotnet publish src/PortPilot.Cli -c Release -r ${{ matrix.rid }} -p:Version=$version -o out
-          exe=out/portpilot; [ -f out/portpilot.exe ] && exe=out/portpilot.exe
-          extensions/vscode/package.sh ${{ matrix.target }} "$PWD/$exe" "$version"
-
-      - name: Upload to release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload '${{ github.ref_name }}' extensions/vscode/portpilot-${{ matrix.target }}.vsix
-
-      - name: Publish to the VS Code Marketplace
-        if: env.VSCE_PAT != ''
-        shell: bash
-        working-directory: extensions/vscode
-        run: npx vsce publish --packagePath portpilot-${{ matrix.target }}.vsix -p "$VSCE_PAT"
-
-      - name: Publish to Open VSX (Cursor, Windsurf, VSCodium)
-        if: env.OVSX_PAT != ''
-        shell: bash
-        working-directory: extensions/vscode
-        run: npx --yes ovsx publish portpilot-${{ matrix.target }}.vsix -p "$OVSX_PAT"
+    uses: ./.github/workflows/vscode-extension.yml
+    with:
+      version: ${{ github.ref_name }}
+      release-tag: ${{ github.ref_name }}
+    secrets: inherit
 
   # IntelliJ IDEA, WebStorm, PyCharm, GoLand, Rider, … (one plugin for all of them).
   jetbrains-plugin:

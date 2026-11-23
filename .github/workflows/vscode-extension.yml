@@ -1,0 +1,131 @@
+name: VS Code extension
+
+# Builds the extension for every platform (each VSIX carries its own native portpilot binary)
+# and publishes all of them together to the VS Code Marketplace and Open VSX.
+#
+#   Automatically: called by the Release workflow for every v* tag.
+#   On its own:    gh workflow run vscode-extension.yml -f version=1.0.1
+#                  (or push a tag like vscode-v1.0.1) to ship an extension-only update.
+#
+# Needs repository secrets VSCE_PAT (VS Code Marketplace) and/or OVSX_PAT (Open VSX).
+# Without them it still builds and keeps the VSIX files as workflow artifacts.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Extension version, e.g. 1.0.1
+        required: true
+      pre-release:
+        description: Publish as a pre-release
+        type: boolean
+        default: false
+  push:
+    tags: ['vscode-v*']
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      release-tag:
+        description: GitHub release to attach the VSIX files to
+        type: string
+        default: ''
+    secrets:
+      VSCE_PAT:
+        required: false
+      OVSX_PAT:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: linux-x64, rid: linux-x64, runner: ubuntu-latest }
+          - { target: linux-arm64, rid: linux-arm64, runner: ubuntu-24.04-arm }
+          - { target: darwin-arm64, rid: osx-arm64, runner: macos-latest }
+          - { target: darwin-x64, rid: osx-x64, runner: macos-15-intel }
+          - { target: win32-x64, rid: win-x64, runner: windows-latest }
+          - { target: win32-arm64, rid: win-arm64, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          v='${{ inputs.version }}'
+          [ -z "$v" ] && v="${GITHUB_REF_NAME#vscode-v}"
+          echo "version=${v#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Package
+        shell: bash
+        run: |
+          dotnet publish src/PortPilot.Cli -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.version.outputs.version }} -o out
+          exe=out/portpilot; [ -f out/portpilot.exe ] && exe=out/portpilot.exe
+          extensions/vscode/package.sh ${{ matrix.target }} "$PWD/$exe" "${{ steps.version.outputs.version }}"
+
+      - name: Smoke test the bundled binary
+        shell: bash
+        run: extensions/vscode/bin/portpilot* list --json > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix-${{ matrix.target }}
+          path: extensions/vscode/portpilot-${{ matrix.target }}.vsix
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      PRE_RELEASE: ${{ inputs.pre-release && '--pre-release' || '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vsix-*
+          merge-multiple: true
+          path: vsix
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: ls -l vsix
+
+      - name: Attach to the GitHub release
+        if: inputs.release-tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload '${{ inputs.release-tag }}' vsix/*.vsix --repo '${{ github.repository }}' --clobber
+
+      - name: Publish to the VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: |
+          npx --yes @vscode/vsce verify-pat atrix21 -p "$VSCE_PAT"
+          npx --yes @vscode/vsce publish $PRE_RELEASE --packagePath vsix/*.vsix -p "$VSCE_PAT"
+
+      - name: Publish to Open VSX (Cursor, Windsurf, VSCodium, Gitpod)
+        if: env.OVSX_PAT != ''
+        run: |
+          # Creating the namespace is a one-time step; it fails harmlessly once it exists.
+          npx --yes ovsx create-namespace atrix21 -p "$OVSX_PAT" || true
+          for f in vsix/*.vsix; do npx --yes ovsx publish "$f" $PRE_RELEASE -p "$OVSX_PAT"; done
+
+      - name: Not published
+        if: env.VSCE_PAT == '' && env.OVSX_PAT == ''
+        run: echo "::notice::VSCE_PAT and OVSX_PAT are not set, so the VSIX files were built but not published. They are attached to this run as artifacts."
