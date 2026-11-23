@@ -4,9 +4,9 @@
 cask "portpilot" do
   arch arm: "arm64", intel: "x64"
 
-  version "1.0.0"
-  sha256 arm:   "0000000000000000000000000000000000000000000000000000000000000000",
-         intel: "0000000000000000000000000000000000000000000000000000000000000000"
+  version "1.2.0"
+  sha256 arm:   "ac3382401887d03daa1615d814f0ebff33ad8cf407892787865f334df796055d",
+         intel: "0e24a12f227c1fc4704929f6d5eb447d2bf3babf3f42d307f127bb4f8ad4484b"
 
   url "https://github.com/Atrix21/port-pilot/releases/download/v#{version}/PortPilot-osx-#{arch}.zip"
   name "PortPilot"
