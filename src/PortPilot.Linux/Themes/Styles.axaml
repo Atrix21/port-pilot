@@ -124,6 +124,46 @@
         <Setter Property="Foreground" Value="{DynamicResource Protocol.Udp}" />
     </Style>
 
+    <!-- Project tag on a row, and the agent marker -->
+    <Style Selector="Border.project-tag">
+        <Setter Property="Padding" Value="5,0,6,0" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource Fill.Subtle}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Hairline}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Border.project-tag TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Secondary}" />
+    </Style>
+    <Style Selector="Border.project-tag c|Icon">
+        <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+    <Style Selector="Border.agent-tag">
+        <Setter Property="Padding" Value="5,0,6,0" />
+        <Setter Property="CornerRadius" Value="5" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+    </Style>
+    <Style Selector="Border.agent-tag TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="Border.agent-tag c|Icon">
+        <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="Border.agent-tag.orphaned">
+        <Setter Property="Background" Value="{DynamicResource Caution.Soft}" />
+    </Style>
+    <Style Selector="Border.agent-tag.orphaned TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Caution}" />
+    </Style>
+    <Style Selector="Border.agent-tag.orphaned c|Icon">
+        <Setter Property="Foreground" Value="{DynamicResource Caution}" />
+    </Style>
+
     <!-- Status dots -->
     <Style Selector="Ellipse.dot">
         <Setter Property="Width" Value="7" />
@@ -148,6 +188,13 @@
     </Style>
     <Style Selector="TextBlock.status.new">
         <Setter Property="Foreground" Value="{DynamicResource Accent}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Ellipse.dot.orphaned">
+        <Setter Property="Fill" Value="{DynamicResource Caution}" />
+    </Style>
+    <Style Selector="TextBlock.status.orphaned">
+        <Setter Property="Foreground" Value="{DynamicResource Caution}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.status.closed">
@@ -200,7 +247,7 @@
 
     <!-- ───────────── Buttons ─────────────
          One template; variants only change brushes. -->
-    <Style Selector="Button.pp, Button.icon, Button.icon-small, Button.secondary, Button.primary, Button.danger, Button.danger-solid, Button.link, Button.ghost, Button.th">
+    <Style Selector="Button.pp, Button.project, Button.icon, Button.icon-small, Button.secondary, Button.primary, Button.danger, Button.danger-solid, Button.link, Button.ghost, Button.th">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
@@ -233,7 +280,7 @@
             </ControlTemplate>
         </Setter>
     </Style>
-    <Style Selector="Button.pp:pressed, Button.icon:pressed, Button.icon-small:pressed, Button.secondary:pressed, Button.primary:pressed, Button.danger:pressed, Button.danger-solid:pressed, Button.ghost:pressed">
+    <Style Selector="Button.pp:pressed, Button.project:pressed, Button.icon:pressed, Button.icon-small:pressed, Button.secondary:pressed, Button.primary:pressed, Button.danger:pressed, Button.danger-solid:pressed, Button.ghost:pressed">
         <Setter Property="RenderTransform" Value="scale(0.97)" />
     </Style>
     <Style Selector="Button:disabled">
@@ -324,6 +371,30 @@
     <Style Selector="Button.ghost">
         <Setter Property="Padding" Value="8,0" />
         <Setter Property="Foreground" Value="{DynamicResource Text.Tertiary}" />
+    </Style>
+
+    <!-- Project cards in the projects bar -->
+    <Style Selector="Button.project">
+        <Setter Property="Padding" Value="12,8,12,9" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="MinWidth" Value="150" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Background" Value="{DynamicResource Fill.Subtle}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Hairline}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Text.Primary}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.project:pointerover">
+        <Setter Property="Background" Value="{DynamicResource Fill.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Stroke.Strong}" />
+    </Style>
+    <Style Selector="Button.project.active">
+        <Setter Property="Background" Value="{DynamicResource Accent.Soft}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Accent}" />
+    </Style>
+    <Style Selector="Button.project.orphans">
+        <Setter Property="BorderBrush" Value="{DynamicResource Caution}" />
     </Style>
 
     <!-- Sortable column header -->

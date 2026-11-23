@@ -175,6 +175,46 @@
                     </Border>
                 </StackPanel>
 
+                <!-- Project & agent -->
+                <StackPanel Margin="0,22,0,0" IsVisible="{Binding Inspector.Row.HasProject, FallbackValue=False}">
+                    <Border Margin="0,0,0,20" Classes="divider" />
+                    <TextBlock Classes="label section" Text="Project" />
+                    <Grid Classes="fact" ColumnDefinitions="92,*">
+                        <TextBlock Classes="key" Text="Repository" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="value" FontWeight="SemiBold" Text="{Binding Inspector.Row.ProjectName}" />
+                            <Border Classes="tag" Margin="0" Padding="5,0" IsVisible="{Binding Inspector.Row.IsWorktree, FallbackValue=False}">
+                                <TextBlock Classes="micro" Text="worktree" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Classes="fact" ColumnDefinitions="92,*" IsVisible="{Binding Inspector.Row.ProjectBranch, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}">
+                        <TextBlock Classes="key" Text="Branch" />
+                        <SelectableTextBlock Grid.Column="1" Classes="value mono" Text="{Binding Inspector.Row.ProjectBranch}" />
+                    </Grid>
+                    <Grid Classes="fact" ColumnDefinitions="92,*">
+                        <TextBlock Classes="key" Text="Folder" />
+                        <SelectableTextBlock Grid.Column="1" Classes="value mono" Text="{Binding Inspector.Row.WorkingDirectory}" />
+                    </Grid>
+                </StackPanel>
+
+                <Border Margin="0,8,0,0" Classes="callout" Background="{DynamicResource Accent.Soft}" IsVisible="{Binding Inspector.Row.Agent.IsRunning, FallbackValue=False}">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <c:Icon Margin="0,1,10,0" VerticalAlignment="Top" Data="{StaticResource Icon.Agent}" Foreground="{DynamicResource Accent}" Size="15" />
+                        <TextBlock Grid.Column="1" Classes="value" Text="{Binding Inspector.Row.AgentText}" />
+                    </Grid>
+                </Border>
+                <Border Margin="0,8,0,0" Classes="callout" Background="{DynamicResource Caution.Soft}" IsVisible="{Binding Inspector.Row.IsOrphaned, FallbackValue=False}">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <c:Icon Margin="0,1,10,0" VerticalAlignment="Top" Data="{StaticResource Icon.Agent}" Foreground="{DynamicResource Caution}" Size="15" />
+                        <StackPanel Grid.Column="1">
+                            <TextBlock FontWeight="SemiBold" Classes="value" Text="Left behind" />
+                            <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Text.Secondary}" Classes="value"
+                                       Text="The Claude Code session that started this has ended, but the process is still running and holding its ports." />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- Siblings -->
                 <StackPanel Margin="0,22,0,0" IsVisible="{Binding Inspector.HasSiblings}">
                     <TextBlock Classes="label section" Text="Also listening" />

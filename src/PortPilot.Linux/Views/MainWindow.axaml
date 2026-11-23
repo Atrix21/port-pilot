@@ -39,7 +39,7 @@
     </Window.KeyBindings>
 
     <Panel>
-        <Grid RowDefinitions="52,Auto,Auto,*,32">
+        <Grid RowDefinitions="52,Auto,Auto,Auto,*,32">
 
             <!-- ═════════════ Top bar ═════════════ -->
             <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0,14,0">
@@ -169,8 +169,65 @@
                 </StackPanel>
             </Grid>
 
+            <!-- ═════════════ Projects ═════════════ -->
+            <Grid Grid.Row="3" Margin="28,0,28,14" ColumnDefinitions="*,Auto" IsVisible="{Binding HasProjects}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Projects}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ProjectGroupViewModel">
+                                <Button Classes="project" Classes.active="{Binding IsActive}" Classes.orphans="{Binding HasOrphans}" Click="OnProjectClick"
+                                        ToolTip.Tip="{Binding PortsText, StringFormat='Show only this project  ·  {0}'}">
+                                    <StackPanel Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="7">
+                                            <c:Icon Data="{StaticResource Icon.Folder}" Size="14" VerticalAlignment="Center" Foreground="{DynamicResource Text.Tertiary}" />
+                                            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Classes="body" Text="{Binding Name}" />
+                                            <Border Classes="agent-tag" IsVisible="{Binding HasAgent}" ToolTip.Tip="A running Claude Code session started processes here">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <c:Icon Data="{StaticResource Icon.Agent}" Size="12" VerticalAlignment="Center" />
+                                                    <TextBlock Text="Claude" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasBranches}">
+                                            <c:Icon Data="{StaticResource Icon.Branch}" Size="12" VerticalAlignment="Center" Foreground="{DynamicResource Text.Tertiary}" />
+                                            <TextBlock VerticalAlignment="Center" MaxWidth="220" Classes="micro mono" Text="{Binding Branches}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock VerticalAlignment="Center" Classes="micro" Text="{Binding Summary}" />
+                                            <Button VerticalAlignment="Center" Classes="link" FontSize="{StaticResource Type.Micro}" Foreground="{DynamicResource Caution}"
+                                                    IsVisible="{Binding HasOrphans}" Click="OnProjectCleanUp" Content="{Binding OrphanText, StringFormat='Clean up {0}'}"
+                                                    ToolTip.Tip="Stop what ended agent sessions left running here" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasOrphans}">
+                    <ToggleButton Classes="chip" IsChecked="{Binding OrphansOnly}" ToolTip.Tip="{Binding OrphanText}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <c:Icon Data="{StaticResource Icon.Agent}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource Caution}" />
+                            <TextBlock VerticalAlignment="Center" Text="{Binding OrphanCount, StringFormat='Left behind · {0}'}" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <Button Classes="secondary" Command="{Binding CleanUpAllOrphansCommand}" ToolTip.Tip="Stop everything ended agent sessions left running">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <c:Icon Data="{StaticResource Icon.Broom}" Size="15" VerticalAlignment="Center" />
+                            <TextBlock VerticalAlignment="Center" FontSize="{StaticResource Type.Caption}" Text="Clean up all" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
             <!-- ═════════════ Content ═════════════ -->
-            <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <Grid Grid.Row="4" ColumnDefinitions="*,Auto">
                 <Grid RowDefinitions="34,*">
                     <!-- Column headers -->
                     <Grid Name="HeaderRow" Margin="44,0,44,0" ColumnDefinitions="110,*,88,116,190,132">
@@ -200,7 +257,21 @@
                                         <c:ProcessIcon NameText="{Binding ProcessName}" Path="{Binding ExecutablePath}" />
                                         <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Classes="body" Text="{Binding ProcessName}" />
-                                            <TextBlock Margin="0,2,0,0" Classes="micro mono" Text="{Binding ProcessDetail}" />
+                                            <Grid Margin="0,2,0,0" ColumnDefinitions="Auto,Auto,*" ClipToBounds="True">
+                                                <Border Grid.Column="1" Classes="project-tag" Margin="0,0,6,0" IsVisible="{Binding HasProject}" ToolTip.Tip="{Binding ProjectRoot}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <c:Icon Data="{StaticResource Icon.Branch}" Size="11" VerticalAlignment="Center" />
+                                                        <TextBlock VerticalAlignment="Center" MaxWidth="180" Text="{Binding ProjectText}" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Classes="agent-tag" Margin="0,0,6,0" Classes.orphaned="{Binding IsOrphaned}" IsVisible="{Binding HasAgent}" ToolTip.Tip="{Binding AgentText}">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <c:Icon Data="{StaticResource Icon.Agent}" Size="11" VerticalAlignment="Center" />
+                                                        <TextBlock VerticalAlignment="Center" Text="Claude" />
+                                                    </StackPanel>
+                                                </Border>
+                                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Classes="micro mono" Text="{Binding ProcessDetail}" />
+                                            </Grid>
                                         </StackPanel>
                                     </Grid>
 
@@ -233,12 +304,14 @@
                                                 <Ellipse Classes="dot"
                                                          Classes.new="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=New}"
                                                          Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}"
+                                                         Classes.orphaned="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Orphaned}"
                                                          Classes.connected="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Connected}"
                                                          Classes.transitional="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Transitional}" />
                                             </Panel>
                                             <TextBlock VerticalAlignment="Center" Classes="status" Text="{Binding StatusText}"
                                                        Classes.new="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=New}"
-                                                       Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}" />
+                                                       Classes.closed="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Closed}"
+                                                       Classes.orphaned="{Binding Status, Converter={x:Static c:EqualsConverter.Instance}, ConverterParameter=Orphaned}" />
                                         </StackPanel>
                                         <StackPanel Classes="actions" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="2">
                                             <Button Classes="icon-small" Click="OnRowOpen" ToolTip.Tip="{Binding UrlDisplay}" IsVisible="{Binding CanOpenInBrowser}">
@@ -302,7 +375,7 @@
             </Grid>
 
             <!-- ═════════════ Status bar ═════════════ -->
-            <Grid Grid.Row="4">
+            <Grid Grid.Row="5">
                 <Border VerticalAlignment="Top" Classes="divider" />
                 <Grid Margin="20,0,12,0" ColumnDefinitions="*,Auto">
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="7">

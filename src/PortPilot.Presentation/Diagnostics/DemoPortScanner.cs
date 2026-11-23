@@ -21,6 +21,27 @@ public sealed class DemoPortScanner : IPortScanner
 
     private sealed record DemoProcess(int Pid, string Image, string? Path, string? CommandLine, TimeSpan Age, ProcessAccessLevel Access = ProcessAccessLevel.Full);
 
+    // Projects and agent sessions: two Claude Code sessions are working, and one has ended but left
+    // its servers running.
+    private static readonly AgentSession LiveAgent = new(30120, DateTimeOffset.Now.AddMinutes(-52), "Claude Code", Win ? $@"{Home}\code\atlas-web" : $"{LinuxHome}/code/atlas-web", IsRunning: true);
+    private static readonly AgentSession EndedAgent = new(28777, DateTimeOffset.Now.AddHours(-3), "Claude Code", Win ? $@"{Home}\code\ledger" : $"{LinuxHome}/code/ledger", IsRunning: false);
+
+    private static readonly Dictionary<int, (ProjectInfo Project, AgentSession? Agent)> Projects = new()
+    {
+        [18244] = (Project("atlas-web", "feature/auth"), LiveAgent),
+        [22408] = (Project("atlas-web", "blog-redesign", worktree: "atlas-web-blog"), LiveAgent),
+        [20112] = (Project("storefront", "main"), EndedAgent),
+        [9032] = (Project("ledger", "fix/rounding"), EndedAgent),
+        [15520] = (Project("atlas", "main"), null),
+    };
+
+    private static ProjectInfo Project(string name, string branch, string? worktree = null)
+    {
+        var folder = worktree ?? name;
+        var root = Win ? $@"{Home}\code\{folder}" : $"{LinuxHome}/code/{folder}";
+        return new ProjectInfo(root, name, branch, worktree is not null);
+    }
+
     // Each process has a Windows and a Linux flavour, so demo screenshots look native on both.
     private static readonly DemoProcess Vite = Win
         ? new(18244, "node.exe", @"C:\Program Files\nodejs\node.exe", $@"""C:\Program Files\nodejs\node.exe"" {Home}\code\atlas-web\node_modules\vite\bin\vite.js --port 5173", TimeSpan.FromMinutes(47))
@@ -141,18 +162,25 @@ public sealed class DemoPortScanner : IPortScanner
     private PortEntry Connection(DemoProcess process, int localPort, IPAddress remote, int remotePort) =>
         Create(process, new PortBinding(TransportProtocol.Tcp, IPAddress.Parse("192.168.1.24"), localPort, remote, remotePort, ConnectionState.Established, process.Pid));
 
-    private PortEntry Create(DemoProcess process, PortBinding binding) => new(
-        binding,
-        new ProcessDetails
-        {
-            ProcessId = process.Pid,
-            ImageName = process.Image,
-            ExecutablePath = process.Path,
-            CommandLine = process.CommandLine,
-            StartTime = process.Access == ProcessAccessLevel.Full ? _boot - process.Age : null,
-            Access = process.Access,
-        },
-        WellKnownPorts.Lookup(binding.LocalPort));
+    private PortEntry Create(DemoProcess process, PortBinding binding)
+    {
+        var project = Projects.TryGetValue(process.Pid, out var p) ? p : default;
+        return new(
+            binding,
+            new ProcessDetails
+            {
+                ProcessId = process.Pid,
+                ImageName = process.Image,
+                ExecutablePath = process.Path,
+                CommandLine = process.CommandLine,
+                StartTime = process.Access == ProcessAccessLevel.Full ? _boot - process.Age : null,
+                Access = process.Access,
+                Project = project.Project,
+                Agent = project.Agent,
+                WorkingDirectory = project.Project?.Root,
+            },
+            WellKnownPorts.Lookup(binding.LocalPort));
+    }
 }
 
 

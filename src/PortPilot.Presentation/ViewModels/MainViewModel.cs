@@ -41,6 +41,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private readonly PortChangeTracker _tracker;
     private readonly Dictionary<string, PortRowViewModel> _rowsByKey = [];
+    private readonly Dictionary<string, ProjectGroupViewModel> _projectsByName = new(StringComparer.Ordinal);
     private readonly RowsView _rowsView;
 
     private AppSettings _settings;
@@ -131,6 +132,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         });
         ToggleListeningOnlyCommand = new RelayCommand(() => ListeningOnly = !ListeningOnly);
         ToggleDevPortsOnlyCommand = new RelayCommand(() => DevPortsOnly = !DevPortsOnly);
+        ToggleOrphansOnlyCommand = new RelayCommand(() => OrphansOnly = !OrphansOnly);
+        ShowProjectCommand = new RelayCommand<ProjectGroupViewModel>(ShowProject);
+        CleanUpOrphansCommand = new AsyncRelayCommand<ProjectGroupViewModel>(p => CleanUpOrphansAsync(p), p => p.HasOrphans, OnCommandError);
+        CleanUpAllOrphansCommand = new RelayCommand(() => _ = CleanUpOrphansAsync(null), () => HasOrphans);
         CloseInspectorCommand = new RelayCommand(() => SelectedRow = null);
         RestartAsAdminCommand = new RelayCommand(RestartAsAdmin, () => !IsElevated);
         QuitCommand = new RelayCommand(_app.Quit);
@@ -234,7 +239,47 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    public bool HasActiveFilters => _filter.HasQuery || _filter.Protocol != ProtocolFilter.All || _filter.DevPortsOnly;
+    /// <summary>Only show processes left behind by agent sessions that have ended.</summary>
+    public bool OrphansOnly
+    {
+        get => _filter.OrphansOnly;
+        set
+        {
+            if (_filter.OrphansOnly != value)
+            {
+                ApplyFilter(_filter with { OrphansOnly = value });
+            }
+        }
+    }
+
+    public bool HasActiveFilters => _filter.HasQuery || _filter.Protocol != ProtocolFilter.All || _filter.DevPortsOnly || _filter.OrphansOnly;
+
+    // ═════════════ Projects & agents ═════════════
+
+    /// <summary>What each project (git repository) is running, busiest first.</summary>
+    public ObservableCollection<ProjectGroupViewModel> Projects { get; } = [];
+
+    public bool HasProjects => Projects.Count > 0;
+
+    private int _orphanCount;
+
+    /// <summary>Processes still holding ports after the agent session that started them ended.</summary>
+    public int OrphanCount
+    {
+        get => _orphanCount;
+        private set
+        {
+            if (Set(ref _orphanCount, value))
+            {
+                OnPropertiesChanged(nameof(HasOrphans), nameof(OrphanText));
+                CommandRequery.Invalidate();
+            }
+        }
+    }
+
+    public bool HasOrphans => _orphanCount > 0;
+
+    public string OrphanText => _orphanCount == 1 ? "1 process left behind by an ended agent session" : $"{_orphanCount} processes left behind by ended agent sessions";
 
     public SortColumn SortColumn => _settings.SortColumn;
 
@@ -409,6 +454,17 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ICommand ToggleListeningOnlyCommand { get; }
 
     public ICommand ToggleDevPortsOnlyCommand { get; }
+
+    public ICommand ToggleOrphansOnlyCommand { get; }
+
+    /// <summary>Filters the table to one project, or clears that filter if it is already active.</summary>
+    public ICommand ShowProjectCommand { get; }
+
+    /// <summary>Stops every process a finished agent session left behind in one project.</summary>
+    public ICommand CleanUpOrphansCommand { get; }
+
+    /// <summary>Stops every process finished agent sessions left behind, in all projects.</summary>
+    public ICommand CleanUpAllOrphansCommand { get; }
 
     public ICommand CloseInspectorCommand { get; }
 
@@ -703,6 +759,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ProcessCount = open.Select(r => r.Pid).Distinct().Count();
         VisibleCount = _rowsView.Cast<PortRowViewModel>().Count(r => !r.IsClosed);
         HasRestrictedProcesses = !IsElevated && open.Any(r => r.IsRestricted);
+        OrphanCount = open.Where(r => r.IsOrphaned).Select(r => r.Pid).Distinct().Count();
+        UpdateProjects(open);
 
         EmptyState = !_hasSnapshot ? EmptyState.Discovering
             : Rows.Count == 0 ? EmptyState.NoPorts
@@ -716,6 +774,97 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         }
 
         OnPropertiesChanged(nameof(CountText), nameof(IsFiltered), nameof(HeaderSubtitle), nameof(StatusText), nameof(HasScanError), nameof(NoResultsTitle), nameof(NoResultsMessage), nameof(HasActiveFilters));
+    }
+
+    /// <summary>Reconciles the project list in place, so the bar never rebuilds or flickers.</summary>
+    private void UpdateProjects(List<PortRowViewModel> open)
+    {
+        var groups = open.Where(r => r.ProjectName is not null)
+            .GroupBy(r => r.ProjectName!, StringComparer.Ordinal)
+            .Select(g => (Name: g.Key, Rows: g.ToList()))
+            .OrderByDescending(g => g.Rows.Any(r => r.IsOrphaned))
+            .ThenByDescending(g => g.Rows.Any(r => r.HasAgent))
+            .ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var live = groups.Select(g => g.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var stale in Projects.Where(p => !live.Contains(p.Name)).ToList())
+        {
+            Projects.Remove(stale);
+            _projectsByName.Remove(stale.Name);
+        }
+
+        for (var i = 0; i < groups.Count; i++)
+        {
+            var (name, rows) = groups[i];
+            if (!_projectsByName.TryGetValue(name, out var group))
+            {
+                group = new ProjectGroupViewModel(name);
+                _projectsByName[name] = group;
+                Projects.Insert(Math.Min(i, Projects.Count), group);
+            }
+
+            group.Update(rows);
+            group.IsActive = ActiveProject == name;
+            var index = Projects.IndexOf(group);
+            if (index != i)
+            {
+                Projects.Move(index, i);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasProjects));
+    }
+
+    private string? ActiveProject => _filter.Query.Trim() is var q && q.StartsWith("project:", StringComparison.OrdinalIgnoreCase) ? q[8..].Trim() : null;
+
+    private void ShowProject(ProjectGroupViewModel project)
+    {
+        SearchText = project.IsActive ? "" : $"project:{project.Name}";
+
+        // Apply now rather than after the search debounce, so the click feels immediate.
+        ApplyFilter(_filter with { Query = _searchText });
+    }
+
+    private async Task CleanUpOrphansAsync(ProjectGroupViewModel? project)
+    {
+        var orphans = Rows
+            .Where(r => r.IsOrphaned && (project is null || r.ProjectName == project.Name))
+            .GroupBy(r => r.Pid)
+            .Select(g => g.First())
+            .ToList();
+        if (orphans.Count == 0)
+        {
+            return;
+        }
+
+        var ports = Rows.Where(r => orphans.Any(o => o.Pid == r.Pid) && !r.IsClosed).Select(r => r.Port).Distinct().Order().ToList();
+        var dialog = new ConfirmDialogViewModel
+        {
+            Title = orphans.Count == 1 ? $"Stop {orphans[0].ProcessName}?" : $"Stop {orphans.Count} leftover processes?",
+            Message = $"{(project is null ? "These were" : $"In {project.Name}, these were")} started by agent sessions that have ended, and are still holding port{(ports.Count == 1 ? "" : "s")} {string.Join(", ", ports.Take(8))}{(ports.Count > 8 ? "…" : "")}.",
+            Detail = string.Join("  ·  ", orphans.Take(4).Select(o => $"{o.ProcessName} {o.PidText}")) + (orphans.Count > 4 ? "  …" : ""),
+            ConfirmText = orphans.Count == 1 ? "Stop it" : $"Stop {orphans.Count}",
+            IsDestructive = true,
+        };
+
+        Dialog = dialog;
+        var confirmed = await dialog.Result;
+        Dialog = null;
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _log.LogInformation("User requested cleanup of {Count} orphaned processes", orphans.Count);
+        var results = await Task.WhenAll(orphans.Select(o => _terminator.TerminateAsync(o.Pid, o.StartTime)));
+        var stopped = results.Count(r => r.Succeeded);
+        var failed = results.Length - stopped;
+        ShowToast(
+            stopped == 1 ? $"Stopped {orphans[0].ProcessName}" : $"Stopped {stopped} leftover processes",
+            failed == 0 ? ToastKind.Success : ToastKind.Warning,
+            failed == 0 ? $"Freed {(ports.Count == 1 ? "port" : "ports")} {string.Join(", ", ports.Take(8))}" : $"{failed} could not be stopped");
+        _monitor.RefreshNow();
     }
 
     private void ApplyFilter(PortFilter filter)
@@ -734,7 +883,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             SelectedRow = null;
         }
 
-        OnPropertiesChanged(nameof(Protocol), nameof(ListeningOnly), nameof(DevPortsOnly), nameof(HasActiveFilters));
+        OnPropertiesChanged(nameof(Protocol), nameof(ListeningOnly), nameof(DevPortsOnly), nameof(OrphansOnly), nameof(HasActiveFilters));
         UpdateCounts();
     }
 
@@ -742,7 +891,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     {
         _searchText = "";
         OnPropertiesChanged(nameof(SearchText), nameof(HasSearchText));
-        ApplyFilter(_filter with { Query = "", Protocol = ProtocolFilter.All, DevPortsOnly = false });
+        ApplyFilter(_filter with { Query = "", Protocol = ProtocolFilter.All, DevPortsOnly = false, OrphansOnly = false });
         UpdateSettings(s => s with { Protocol = ProtocolFilter.All, DevPortsOnly = false });
     }
 

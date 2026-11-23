@@ -14,6 +14,7 @@ public enum RowStatus
     Connected,
     Transitional,
     New,
+    Orphaned,
     Closed,
 }
 
@@ -101,6 +102,38 @@ public sealed class PortRowViewModel : ObservableObject
         }
     }
 
+    // ── Project & agent ──
+    public ProjectInfo? Project => _entry.Process.Project;
+
+    public bool HasProject => Project is not null;
+
+    public string? ProjectName => Project?.Name;
+
+    public string? ProjectBranch => Project?.Branch;
+
+    /// <summary><c>atlas-web · feature/auth</c>.</summary>
+    public string? ProjectText => Project?.DisplayText;
+
+    public string? ProjectRoot => Project?.Root;
+
+    public bool IsWorktree => Project?.IsWorktree == true;
+
+    public string? WorkingDirectory => _entry.Process.WorkingDirectory;
+
+    public AgentSession? Agent => _entry.Process.Agent;
+
+    public bool HasAgent => Agent is not null;
+
+    /// <summary>Still running after the agent session that started it has ended.</summary>
+    public bool IsOrphaned => _entry.Process.IsOrphaned && !IsClosed;
+
+    public string? AgentText => Agent switch
+    {
+        null => null,
+        { IsRunning: true } a => $"Started by {a.Name} (PID {a.ProcessId.ToString(CultureInfo.InvariantCulture)})",
+        { } a => $"Left behind by a {a.Name} session that has ended",
+    };
+
     // ── Endpoint ──
     public bool IsTcp => _entry.Binding.Protocol == TransportProtocol.Tcp;
 
@@ -150,6 +183,7 @@ public sealed class PortRowViewModel : ObservableObject
 
     public RowStatus Status => IsClosed ? RowStatus.Closed
         : IsNew ? RowStatus.New
+        : IsOrphaned ? RowStatus.Orphaned
         : State switch
         {
             ConnectionState.Listening => RowStatus.Listening,
@@ -162,6 +196,7 @@ public sealed class PortRowViewModel : ObservableObject
     {
         RowStatus.Closed => "Closed",
         RowStatus.New => "New",
+        RowStatus.Orphaned => "Left behind",
         _ => StateText,
     };
 
@@ -201,7 +236,7 @@ public sealed class PortRowViewModel : ObservableObject
         {
             if (Set(ref _isClosed, value))
             {
-                OnPropertiesChanged(nameof(Status), nameof(StatusText), nameof(StateText), nameof(CanOpenInBrowser));
+                OnPropertiesChanged(nameof(Status), nameof(StatusText), nameof(StateText), nameof(CanOpenInBrowser), nameof(IsOrphaned));
             }
         }
     }
@@ -239,6 +274,16 @@ public sealed class PortRowViewModel : ObservableObject
             if (CommandLine is not null)
             {
                 lines.Add(CommandLine);
+            }
+
+            if (Project is { } project)
+            {
+                lines.Add($"Project: {project.DisplayText} ({project.Root})");
+            }
+
+            if (AgentText is { } agent)
+            {
+                lines.Add(agent);
             }
 
             return string.Join(Environment.NewLine, lines);

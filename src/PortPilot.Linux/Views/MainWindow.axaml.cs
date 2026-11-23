@@ -272,6 +272,23 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnProjectClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as StyledElement)?.DataContext is ProjectGroupViewModel project)
+        {
+            _vm.ShowProjectCommand.Execute(project);
+        }
+    }
+
+    private void OnProjectCleanUp(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if ((sender as StyledElement)?.DataContext is ProjectGroupViewModel project && _vm.CleanUpOrphansCommand.CanExecute(project))
+        {
+            _vm.CleanUpOrphansCommand.Execute(project);
+        }
+    }
+
     private void OnSettingsScrimPressed(object? sender, PointerPressedEventArgs e) => _vm.IsSettingsOpen = false;
 
     private void OnShortcutsScrimPressed(object? sender, PointerPressedEventArgs e) => _vm.IsShortcutsOpen = false;

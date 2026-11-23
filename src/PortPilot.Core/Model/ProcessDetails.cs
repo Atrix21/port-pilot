@@ -35,6 +35,18 @@ public sealed record ProcessDetails
 
     public ProcessAccessLevel Access { get; init; }
 
+    /// <summary>The process's current directory, when the OS shares it (Linux, own processes or root).</summary>
+    public string? WorkingDirectory { get; init; }
+
+    /// <summary>The git repository the process is working in, if any.</summary>
+    public ProjectInfo? Project { get; init; }
+
+    /// <summary>The coding agent session (such as Claude Code) that started this process, if any.</summary>
+    public AgentSession? Agent { get; init; }
+
+    /// <summary>Started by an agent session that has since ended, and still running.</summary>
+    public bool IsOrphaned => Agent is { IsRunning: false };
+
     /// <summary>Friendly name without the <c>.exe</c> suffix.</summary>
     public string DisplayName => ImageName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
         ? ImageName[..^4]
@@ -59,4 +71,17 @@ public sealed record ProcessDetails
             ImageName = pid == 0 ? "Unknown owner" : $"PID {pid}",
             Access = pid == 0 ? ProcessAccessLevel.Restricted : ProcessAccessLevel.Exited,
         };
+}
+
+/// <summary>A git repository or worktree, identified from a process's working directory.</summary>
+public sealed record ProjectInfo(string Root, string Name, string? Branch, bool IsWorktree)
+{
+    /// <summary><c>atlas-web</c>, or <c>atlas-web · feature/auth</c> when on a branch.</summary>
+    public string DisplayText => Branch is null ? Name : $"{Name} · {Branch}";
+}
+
+/// <summary>An agent process that launched other processes, such as a Claude Code session.</summary>
+public sealed record AgentSession(int ProcessId, DateTimeOffset? StartTime, string Name, string? WorkingDirectory, bool IsRunning)
+{
+    public string Key => $"{ProcessId}@{StartTime?.UtcTicks}";
 }

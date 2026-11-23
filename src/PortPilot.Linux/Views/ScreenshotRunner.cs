@@ -22,7 +22,7 @@ internal static class ScreenshotRunner
             await Task.Delay(600);
             Save(window, Path.Combine(directory, $"main-{suffix}.png"));
 
-            vm.SelectedRow = vm.RowsView.FirstOrDefault(r => r.HasExecutablePath) ?? vm.RowsView.FirstOrDefault();
+            vm.SelectedRow = vm.RowsView.FirstOrDefault(r => r.IsOrphaned) ?? vm.RowsView.FirstOrDefault(r => r.HasExecutablePath) ?? vm.RowsView.FirstOrDefault();
             await Task.Delay(700);
             Save(window, Path.Combine(directory, $"inspector-{suffix}.png"));
 

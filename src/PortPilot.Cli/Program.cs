@@ -43,6 +43,10 @@ switch (command)
         return List(string.Join(' ', rest), all, dev, flags.Contains("--json"));
     case "who" or "inspect":
         return Who(rest);
+    case "projects" or "p":
+        return Projects(all);
+    case "cleanup" or "clean":
+        return await CleanupAsync(flags.Contains("-y") || flags.Contains("--yes"));
     case "kill" or "stop":
         return await KillAsync(rest, flags.Contains("-y") || flags.Contains("--yes"), flags.Contains("--json"));
     default:
@@ -133,6 +137,14 @@ static int Who(List<string> rest)
         Line(sb, "command", p.CommandLine);
         Line(sb, "started", p.StartTime is { } s ? $"{s.ToLocalTime():yyyy-MM-dd HH:mm:ss} ({Format.Age(s)} ago)" : null);
         Line(sb, "parent", p.ParentProcessId?.ToString(CultureInfo.InvariantCulture));
+        Line(sb, "project", p.Project is { } project ? $"{project.DisplayText}{(project.IsWorktree ? " (worktree)" : "")}  {project.Root}" : null);
+        Line(sb, "folder", p.Project is null ? p.WorkingDirectory : null);
+        Line(sb, "agent", p.Agent switch
+        {
+            null => null,
+            { IsRunning: true } a => $"started by {a.Name} (PID {a.ProcessId})",
+            { } a => $"left behind by a {a.Name} session that has ended",
+        });
         if (p.Access == ProcessAccessLevel.Restricted)
         {
             sb.Append(OperatingSystem.IsWindows() ? "  Details need administrator access.\n" : "  Details need root; try sudo.\n");
@@ -239,7 +251,8 @@ static string Header(int width)
     Format.Cell(sb, "PID", 8);
     Format.Cell(sb, "PROCESS", 18);
     Format.Cell(sb, "SERVICE", 15);
-    Format.Cell(sb, "COMMAND", width - 69, padRight: false);
+    Format.Cell(sb, "PROJECT", 24);
+    Format.Cell(sb, "COMMAND", width - 93, padRight: false);
     return sb.ToString();
 }
 
@@ -251,7 +264,102 @@ static void AppendRow(StringBuilder sb, PortEntry e, int width)
     Format.Cell(sb, Format.Pid(e), 8);
     Format.Cell(sb, Format.Process(e.Process), 18);
     Format.Cell(sb, e.Known?.Name ?? "", 15);
-    Format.Cell(sb, e.Process.CommandLine ?? e.Process.ExecutablePath, width - 69, padRight: false);
+    Format.Cell(sb, Format.Project(e.Process), 24);
+    Format.Cell(sb, e.Process.CommandLine ?? e.Process.ExecutablePath, width - 93, padRight: false);
+}
+
+/// <summary>What each git project is running, and what ended agent sessions left behind.</summary>
+static int Projects(bool all)
+{
+    var entries = Scan(all, new PortFilter(ListeningOnly: !all));
+    var groups = entries.Where(e => e.Process.Project is not null)
+        .GroupBy(e => e.Process.Project!.Name)
+        .OrderByDescending(g => g.Any(e => e.Process.IsOrphaned))
+        .ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    if (groups.Count == 0)
+    {
+        Console.WriteLine("No listening process is working inside a git project.");
+        return 0;
+    }
+
+    var sb = new StringBuilder();
+    foreach (var group in groups)
+    {
+        var branches = string.Join(", ", group.Select(e => e.Process.Project!.Branch).Where(b => b is not null).Distinct());
+        sb.Append(group.Key);
+        if (branches.Length > 0)
+        {
+            sb.Append("  (").Append(branches).Append(')');
+        }
+
+        sb.Append('\n');
+        foreach (var process in group.GroupBy(e => e.ProcessId))
+        {
+            var e = process.First();
+            var ports = string.Join(" ", process.Select(x => ":" + x.Port.ToString(CultureInfo.InvariantCulture)).Distinct());
+            var agent = e.Process.Agent switch
+            {
+                null => "",
+                { IsRunning: true } a => $"  [{a.Name} {a.ProcessId}]",
+                { } a => $"  [left behind by {a.Name}]",
+            };
+            sb.Append(CultureInfo.InvariantCulture, $"  {ports,-16} {Format.Process(e.Process)} ({Format.Pid(e)}){agent}\n");
+        }
+
+        sb.Append('\n');
+    }
+
+    var orphans = entries.Where(e => e.Process.IsOrphaned).Select(e => e.ProcessId).Distinct().Count();
+    if (orphans > 0)
+    {
+        sb.Append(CultureInfo.InvariantCulture, $"{orphans} {(orphans == 1 ? "process was" : "processes were")} left behind by ended agent sessions. Stop them with: portpilot cleanup\n");
+    }
+
+    Console.Out.Write(sb.ToString());
+    return 0;
+}
+
+/// <summary>Stops every process an ended agent session left behind.</summary>
+static async Task<int> CleanupAsync(bool yes)
+{
+    // Attribution survives the agent exiting only inside one PortPilot process, so a one-shot CLI run
+    // sees orphans whose agent ended while the scan ran, or that inherited a dead agent from a running
+    // PortPilot monitor. In practice: use `portpilot` (live view) or the desktop app to catch them.
+    var orphans = Scan(false, new PortFilter(OrphansOnly: true)).GroupBy(e => e.ProcessId).Select(g => g.First()).ToList();
+    if (orphans.Count == 0)
+    {
+        Console.WriteLine("Nothing was left behind by an ended agent session.");
+        return 0;
+    }
+
+    foreach (var e in orphans)
+    {
+        Console.WriteLine($"  :{e.Port}  {Format.Process(e.Process)} ({e.ProcessId})  {Format.Project(e.Process)}");
+    }
+
+    if (!yes)
+    {
+        if (Console.IsInputRedirected)
+        {
+            Console.Error.WriteLine("Refusing to stop processes without confirmation; pass -y.");
+            return 2;
+        }
+
+        Console.Write($"Stop {(orphans.Count == 1 ? "it" : $"all {orphans.Count}")}? [y/N] ");
+        if (Console.ReadLine()?.Trim().ToLowerInvariant() is not ("y" or "yes"))
+        {
+            Console.WriteLine("Left them alone.");
+            return 0;
+        }
+    }
+
+    var terminator = PlatformServices.CreateProcessTerminator();
+    var results = await Task.WhenAll(orphans.Select(e => terminator.TerminateAsync(e.ProcessId, e.Process.StartTime)));
+    var stopped = results.Count(r => r.Succeeded);
+    Console.WriteLine($"Stopped {stopped} of {orphans.Count}.");
+    return stopped == orphans.Count ? 0 : 1;
 }
 
 static void WriteJson(Utf8JsonWriter w, PortEntry e)
@@ -278,6 +386,27 @@ static void WriteJson(Utf8JsonWriter w, PortEntry e)
     }
 
     w.WriteString("access", p.Access.ToString());
+    w.WriteString("workingDirectory", p.WorkingDirectory);
+    if (p.Project is { } project)
+    {
+        w.WriteStartObject("project");
+        w.WriteString("name", project.Name);
+        w.WriteString("branch", project.Branch);
+        w.WriteString("root", project.Root);
+        w.WriteBoolean("worktree", project.IsWorktree);
+        w.WriteEndObject();
+    }
+
+    if (p.Agent is { } agent)
+    {
+        w.WriteStartObject("agent");
+        w.WriteString("name", agent.Name);
+        w.WriteNumber("pid", agent.ProcessId);
+        w.WriteBoolean("running", agent.IsRunning);
+        w.WriteEndObject();
+    }
+
+    w.WriteBoolean("orphaned", p.IsOrphaned);
     w.WriteString("service", e.Known?.Name);
     w.WriteEndObject();
 }
@@ -291,11 +420,13 @@ static string Help() => """
       portpilot who <port>           explain what holds a port (also: portpilot <port>)
       portpilot kill <port>          stop whatever holds a port   -y skip confirmation
       portpilot kill pid:<pid>       stop a process by PID
+      portpilot projects             what each git project is running, and which Claude session started it
+      portpilot cleanup              stop what ended agent sessions left running   -y skip confirmation
 
     Live view keys
       ↑↓ / j k   move           /     search          x / Del   stop process
       PgUp PgDn  page           Esc   clear search    o         open in browser
       a          all TCP states d     dev ports only  t         tcp / udp / both
-      r          refresh now    q     quit
+      r          refresh now    c     clean up leftovers  q   quit
 
     """;
