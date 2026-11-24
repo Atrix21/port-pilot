@@ -176,4 +176,20 @@ public sealed class SettingsStoreTests
 
         Assert.AreEqual(1, new JsonSettingsStore(_path).Load().RefreshIntervalSeconds);
     }
+
+    [TestMethod]
+    public void Settings_from_an_older_version_keep_defaults_for_missing_keys()
+    {
+        // A v1.0.0 file has none of the keys added later. Those must fall back to their defaults, not null/false.
+        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        File.WriteAllText(_path, "{ \"theme\": \"dark\", \"hasShownTrayHint\": true }");
+
+        var settings = new JsonSettingsStore(_path).Load();
+
+        Assert.AreEqual(ThemePreference.Dark, settings.Theme);
+        Assert.IsTrue(settings.OverviewMode);
+        Assert.AreEqual(string.Empty, settings.CustomAgents);
+        Assert.AreEqual(0, settings.CustomAgentNames.Count);
+        Assert.IsTrue(settings.CloseToTray);
+    }
 }

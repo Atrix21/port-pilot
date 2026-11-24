@@ -28,41 +28,42 @@ public sealed record AppSettings
 {
     public static readonly int[] RefreshIntervalChoices = [1, 2, 5, 10];
 
-    public ThemePreference Theme { get; init; } = ThemePreference.System;
 
-    public int RefreshIntervalSeconds { get; init; } = 2;
+    public ThemePreference Theme { get; set; } = ThemePreference.System;
 
-    public bool MinimizeToTray { get; init; }
+    public int RefreshIntervalSeconds { get; set; } = 2;
 
-    public bool CloseToTray { get; init; } = true;
+    public bool MinimizeToTray { get; set; }
 
-    public bool NotifyOnNewDevPorts { get; init; } = true;
+    public bool CloseToTray { get; set; } = true;
 
-    public bool StartMinimized { get; init; }
+    public bool NotifyOnNewDevPorts { get; set; } = true;
 
-    public ProtocolFilter Protocol { get; init; } = ProtocolFilter.All;
+    public bool StartMinimized { get; set; }
 
-    public bool ListeningOnly { get; init; } = true;
+    public ProtocolFilter Protocol { get; set; } = ProtocolFilter.All;
 
-    public bool DevPortsOnly { get; init; }
+    public bool ListeningOnly { get; set; } = true;
 
-    public SortColumn SortColumn { get; init; } = SortColumn.Port;
+    public bool DevPortsOnly { get; set; }
 
-    public bool SortDescending { get; init; }
+    public SortColumn SortColumn { get; set; } = SortColumn.Port;
 
-    public WindowPlacementSettings? Window { get; init; }
+    public bool SortDescending { get; set; }
 
-    public bool HasShownTrayHint { get; init; }
+    public WindowPlacementSettings? Window { get; set; }
+
+    public bool HasShownTrayHint { get; set; }
 
     /// <summary>Show apps grouped by project (true) or the full port table (false).</summary>
-    public bool OverviewMode { get; init; } = true;
+    public bool OverviewMode { get; set; } = true;
 
     /// <summary>Extra agent executables to recognise, on top of the built-in list (Claude Code, Codex, Gemini CLI, Aider, …).</summary>
     /// <remarks>Comma-separated, so the record keeps value equality.</remarks>
-    public string CustomAgents { get; init; } = "";
+    public string CustomAgents { get; set; } = "";
 
     public IReadOnlyList<string> CustomAgentNames =>
-        CustomAgents.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        (CustomAgents ?? "").Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     public AppSettings Normalize() => this with
     {

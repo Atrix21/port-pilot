@@ -43,6 +43,27 @@ public partial class App : Application, IAppShell
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        try
+        {
+            StartCore(e);
+        }
+        catch (Exception ex)
+        {
+            // Without this a startup failure is swallowed by the dispatcher handler and PortPilot keeps
+            // running with no window at all, which looks like it simply did not open.
+            _log?.LogCritical(ex, "Startup failed");
+            _logs?.Dispose();
+            System.Windows.MessageBox.Show(
+                $"PortPilot could not start.\n\n{ex.Message}\n\nDetails are in %LocalAppData%\\PortPilot\\logs.",
+                "PortPilot",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Environment.Exit(1);
+        }
+    }
+
+    private void StartCore(StartupEventArgs e)
+    {
         CommandRequery.Bridge = (
             h => System.Windows.Input.CommandManager.RequerySuggested += h,
             h => System.Windows.Input.CommandManager.RequerySuggested -= h,
